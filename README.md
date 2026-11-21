@@ -23,3 +23,7 @@ Only facts and figures are recorded here; no text is reproduced.
 - Barrage lift timetables for each corps beyond what is noted; locations and times of the 11 small mines in the south.
 - Battalion casualties under 500 (Middlebrook lists only those over 500).
 - German regimental positions to confirm, especially reserves and the 10th Bavarian Division.
+
+## Terrain and maps
+- `data/dem/cop30_somme.tif`: Copernicus GLO-30 (2023_1), 1 arc-second, 2.58-2.86 E, 49.96-50.16 N, 27-185 m. Spot-checked against 1916 contours (Thiepval 140 m, Albert 72 m).
+- `refs/nls/`: trench map screenshots (see its README). Montauban-Maricourt still missing.
