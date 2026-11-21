@@ -1,0 +1,19 @@
+{
+  "_source": "Middlebrook, Appendix 2 (divisions and regiments facing the British attack); positions from The Western Front Companion, Maps 40-45. RIR = Reserve Infantry Regiment; IR = Infantry Regiment.",
+  "divisions": [
+    { "name": "2nd Guards Reserve Division", "regiments": ["RIR 15", "RIR 55", "RIR 77", "RIR 91"],
+      "positions": { "RIR 55": "Gommecourt village and park", "RIR 91": "Pigeon Wood / the Z, north of Gommecourt" } },
+    { "name": "52nd Division", "regiments": ["IR 66 (3rd Magdeburg)", "IR 169 (8th Baden)", "IR 170 (9th Baden)"],
+      "positions": { "IR 170": "south of Gommecourt, opposite 56th Division (with left company of RIR 55)", "IR 169": "Serre", "IR 66": "north of Serre" } },
+    { "name": "26th Reserve Division", "regiments": ["IR 180 (10th Württemberg)", "RIR 99", "RIR 119 (1st Württemberg)", "RIR 121 (3rd Württemberg)"],
+      "positions": { "RIR 121": "Ridge Redoubt / Quadrilateral (Heidenkopf), opposite 4th Division", "RIR 119": "Beaumont-Hamel, Hawthorn Redoubt", "RIR 99": "St Pierre-Divion, Schwaben Redoubt, Thiepval", "IR 180": "Ovillers and Nordwerk" },
+      "note": "Eight battalions faced X Corps (Companion)." },
+    { "name": "28th Reserve Division", "regiments": ["RIR 109", "RIR 110", "RIR 111"],
+      "positions": { "RIR 110": "La Boisselle", "RIR 111": "Fricourt", "RIR 109": "Mametz and Pommiers Redoubt" },
+      "note": "Six battalions faced XV Corps (Companion)." },
+    { "name": "12th Division", "regiments": ["IR 23 (2nd Upper Silesian)", "IR 62 (3rd Upper Silesian)", "IR 63 (4th Upper Silesian)"],
+      "positions": { "IR 62": "Montauban", "IR 23": "east of Montauban (part)" } },
+    { "name": "10th Bavarian Division", "regiments": ["Bavarian IR 16", "Bavarian RIR 6", "Bavarian RIR 8"],
+      "positions": { "Bavarian RIR 8": "reinforced the Schwaben Redoubt sector (general knowledge, to be confirmed)" } }
+  ]
+}

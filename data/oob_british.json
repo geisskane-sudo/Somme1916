@@ -1,0 +1,236 @@
+{
+  "_source": "Middlebrook, The First Day on the Somme, Appendix 1 (pp. 365-373), cross-checked with The Western Front Companion, Map 40-45 notes. 'involved': true = shown in small capitals by Middlebrook (heavily involved in the fighting) - read from phone photos, so worth checking. Nicknames as printed.",
+  "armies": [
+    {
+      "name": "Fourth Army", "commander": "Gen. Sir H. Rawlinson",
+      "corps": [
+        {
+          "name": "III Corps", "commander": "Lt-Gen. Sir W. P. Pulteney",
+          "divisions": [
+            { "name": "8th Division", "type": "REG", "commander": "Maj.-Gen. H. Hudson", "brigades": [
+              { "name": "23rd Brigade", "battalions": [
+                { "name": "2nd Devons", "involved": true }, { "name": "2nd West Yorks", "involved": true },
+                { "name": "2nd Middlesex", "involved": true }, { "name": "2nd Scottish Rifles", "involved": false } ] },
+              { "name": "25th Brigade", "battalions": [
+                { "name": "2nd Lincolns", "involved": true }, { "name": "2nd Royal Berks", "involved": true },
+                { "name": "1st Royal Irish Rifles", "involved": true }, { "name": "2nd Rifle Brigade", "involved": false } ] },
+              { "name": "70th Brigade", "battalions": [
+                { "name": "11th Sherwood Foresters", "involved": true }, { "name": "8th King's Own Yorkshire Light Infantry", "involved": true },
+                { "name": "8th York and Lancaster", "involved": true }, { "name": "9th York and Lancaster", "involved": true } ] } ],
+              "pioneers": [{ "name": "22nd Durham Light Infantry", "involved": false }] },
+            { "name": "34th Division", "type": "NA", "commander": "Maj.-Gen. E. C. Ingouville-Williams", "brigades": [
+              { "name": "101st Brigade", "battalions": [
+                { "name": "15th Royal Scots", "nick": "1st Edinburgh City", "involved": true }, { "name": "16th Royal Scots", "nick": "2nd Edinburgh City", "involved": true },
+                { "name": "10th Lincolns", "nick": "Grimsby Chums", "involved": true }, { "name": "11th Suffolks", "nick": "Cambridge", "involved": true } ] },
+              { "name": "102nd (Tyneside Scottish) Brigade", "battalions": [
+                { "name": "20th Northumberland Fusiliers", "nick": "1st Tyneside Scottish", "involved": true }, { "name": "21st Northumberland Fusiliers", "nick": "2nd Tyneside Scottish", "involved": true },
+                { "name": "22nd Northumberland Fusiliers", "nick": "3rd Tyneside Scottish", "involved": true }, { "name": "23rd Northumberland Fusiliers", "nick": "4th Tyneside Scottish", "involved": true } ] },
+              { "name": "103rd (Tyneside Irish) Brigade", "battalions": [
+                { "name": "24th Northumberland Fusiliers", "nick": "1st Tyneside Irish", "involved": true }, { "name": "25th Northumberland Fusiliers", "nick": "2nd Tyneside Irish", "involved": true },
+                { "name": "26th Northumberland Fusiliers", "nick": "3rd Tyneside Irish", "involved": true }, { "name": "27th Northumberland Fusiliers", "nick": "4th Tyneside Irish", "involved": true } ] } ],
+              "pioneers": [{ "name": "18th Northumberland Fusiliers", "involved": true }] },
+            { "name": "19th (Western) Division", "type": "NA", "commander": "Maj.-Gen. G. T. M. Bridges", "reserve": true, "brigades": [
+              { "name": "56th Brigade", "battalions": [
+                { "name": "7th King's Own", "involved": false }, { "name": "7th East Lancs", "involved": false },
+                { "name": "7th South Lancs", "involved": false }, { "name": "7th Loyal North Lancs", "involved": false } ] },
+              { "name": "57th Brigade", "battalions": [
+                { "name": "10th Royal Warwicks", "involved": false }, { "name": "8th Gloucesters", "involved": false },
+                { "name": "10th Worcesters", "involved": false }, { "name": "8th North Staffs", "involved": false } ] },
+              { "name": "58th Brigade", "battalions": [
+                { "name": "9th Cheshires", "involved": true }, { "name": "9th Royal Welch Fusiliers", "involved": false },
+                { "name": "9th Welch", "involved": false }, { "name": "6th Wilts", "involved": false } ] } ],
+              "pioneers": [{ "name": "5th South Wales Borderers", "involved": false }] }
+          ]
+        },
+        {
+          "name": "VIII Corps", "commander": "Lt-Gen. Sir A. G. Hunter-Weston",
+          "divisions": [
+            { "name": "4th Division", "type": "REG", "commander": "Maj.-Gen. Hon. W. Lambton", "brigades": [
+              { "name": "10th Brigade", "battalions": [
+                { "name": "1st Royal Irish Fusiliers", "involved": true }, { "name": "2nd Seaforth Highlanders", "involved": true },
+                { "name": "2nd Royal Dublin Fusiliers", "involved": true }, { "name": "1st Royal Warwicks", "involved": false } ] },
+              { "name": "11th Brigade", "battalions": [
+                { "name": "1st Somerset Light Infantry", "involved": true }, { "name": "1st East Lancs", "involved": true },
+                { "name": "1st Hampshires", "involved": true }, { "name": "1st Rifle Brigade", "involved": true } ] },
+              { "name": "12th Brigade", "battalions": [
+                { "name": "1st King's Own", "involved": true }, { "name": "2nd Lancashire Fusiliers", "involved": true },
+                { "name": "2nd Duke of Wellington's", "involved": true }, { "name": "2nd Essex", "involved": true } ] } ],
+              "pioneers": [{ "name": "21st West Yorks", "involved": false }] },
+            { "name": "29th Division", "type": "REG", "commander": "Maj.-Gen. H. de B. de Lisle", "brigades": [
+              { "name": "86th Brigade", "battalions": [
+                { "name": "2nd Royal Fusiliers", "involved": true }, { "name": "1st Lancashire Fusiliers", "involved": true },
+                { "name": "16th Middlesex", "nick": "Public Schools Battalion", "involved": true }, { "name": "1st Royal Dublin Fusiliers", "involved": true } ] },
+              { "name": "87th Brigade", "battalions": [
+                { "name": "2nd South Wales Borderers", "involved": true }, { "name": "1st King's Own Scottish Borderers", "involved": true },
+                { "name": "1st Royal Inniskilling Fusiliers", "involved": true }, { "name": "1st Border", "involved": true } ] },
+              { "name": "88th Brigade", "battalions": [
+                { "name": "1st Essex", "involved": true }, { "name": "1st Newfoundland", "involved": true },
+                { "name": "4th Worcesters", "involved": false }, { "name": "2nd Hampshires", "involved": false } ] } ],
+              "pioneers": [{ "name": "1/2nd Monmouths", "involved": true }] },
+            { "name": "31st Division", "type": "NA", "commander": "Maj.-Gen. R. Wanless O'Gowan", "brigades": [
+              { "name": "92nd Brigade", "note": "not involved in the attack (Companion)", "battalions": [
+                { "name": "10th East Yorks", "nick": "Hull Commercials", "involved": true }, { "name": "11th East Yorks", "nick": "Hull Tradesmen", "involved": false },
+                { "name": "12th East Yorks", "nick": "Hull Sportsmen", "involved": false }, { "name": "13th East Yorks", "nick": "T'Others", "involved": false } ] },
+              { "name": "93rd Brigade", "battalions": [
+                { "name": "15th West Yorks", "nick": "Leeds Pals", "involved": true }, { "name": "16th West Yorks", "nick": "1st Bradford Pals", "involved": true },
+                { "name": "18th West Yorks", "nick": "2nd Bradford Pals", "involved": true }, { "name": "18th Durham Light Infantry", "nick": "Durham Pals", "involved": true } ] },
+              { "name": "94th Brigade", "battalions": [
+                { "name": "11th East Lancs", "nick": "Accrington Pals", "involved": true }, { "name": "12th York and Lancaster", "nick": "Sheffield City Battalion", "involved": true },
+                { "name": "13th York and Lancaster", "nick": "1st Barnsley Pals", "involved": true }, { "name": "14th York and Lancaster", "nick": "2nd Barnsley Pals", "involved": true } ] } ],
+              "pioneers": [{ "name": "12th King's Own Yorkshire Light Infantry", "nick": "Halifax Pals", "involved": true }] },
+            { "name": "48th (South Midland) Division", "type": "TF", "commander": "Maj.-Gen. R. Fanshawe", "reserve": true,
+              "note": "In reserve; only 1/6th and 1/8th Royal Warwicks (attached to 4th Division) took part.", "brigades": [
+              { "name": "143rd Brigade", "battalions": [
+                { "name": "1/5th Royal Warwicks", "involved": false }, { "name": "1/6th Royal Warwicks", "involved": true },
+                { "name": "1/7th Royal Warwicks", "involved": false }, { "name": "1/8th Royal Warwicks", "involved": true } ] },
+              { "name": "144th Brigade", "battalions": [
+                { "name": "1/4th Gloucesters", "involved": false }, { "name": "1/6th Gloucesters", "involved": false },
+                { "name": "1/7th Worcesters", "involved": false }, { "name": "1/8th Worcesters", "involved": false } ] },
+              { "name": "145th Brigade", "battalions": [
+                { "name": "1/5th Gloucesters", "involved": false }, { "name": "1/4th Oxford and Bucks Light Infantry", "involved": false },
+                { "name": "1st Bucks", "involved": false }, { "name": "1/4th Royal Berks", "involved": false } ] } ],
+              "pioneers": [{ "name": "1/5th Royal Sussex", "involved": false }] }
+          ]
+        },
+        {
+          "name": "X Corps", "commander": "Lt-Gen. Sir T. L. N. Morland",
+          "divisions": [
+            { "name": "32nd Division", "type": "NA", "commander": "Maj.-Gen. W. H. Rycroft", "brigades": [
+              { "name": "14th Brigade", "battalions": [
+                { "name": "19th Lancashire Fusiliers", "nick": "3rd Salford Pals", "involved": true }, { "name": "1st Dorsets", "involved": true },
+                { "name": "2nd Manchesters", "involved": true }, { "name": "15th Highland Light Infantry", "nick": "Glasgow Tramways", "involved": false } ] },
+              { "name": "96th Brigade", "battalions": [
+                { "name": "16th Northumberland Fusiliers", "nick": "Newcastle Commercials", "involved": true }, { "name": "2nd Royal Inniskilling Fusiliers", "involved": true },
+                { "name": "15th Lancashire Fusiliers", "nick": "1st Salford Pals", "involved": true }, { "name": "16th Lancashire Fusiliers", "nick": "2nd Salford Pals", "involved": true } ] },
+              { "name": "97th Brigade", "battalions": [
+                { "name": "11th Border", "nick": "The Lonsdales", "involved": true }, { "name": "2nd King's Own Yorkshire Light Infantry", "involved": true },
+                { "name": "16th Highland Light Infantry", "nick": "Glasgow Boys' Brigade", "involved": true }, { "name": "17th Highland Light Infantry", "nick": "Glasgow Commercials", "involved": true } ] } ],
+              "pioneers": [{ "name": "17th Northumberland Fusiliers", "nick": "Newcastle Railway Pals", "involved": true }] },
+            { "name": "36th (Ulster) Division", "type": "NA", "commander": "Maj.-Gen. O. S. W. Nugent", "brigades": [
+              { "name": "107th Brigade", "battalions": [
+                { "name": "8th Royal Irish Rifles", "nick": "East Belfast", "involved": true }, { "name": "9th Royal Irish Rifles", "nick": "West Belfast", "involved": true },
+                { "name": "10th Royal Irish Rifles", "nick": "South Belfast", "involved": true }, { "name": "15th Royal Irish Rifles", "nick": "North Belfast", "involved": true } ] },
+              { "name": "108th Brigade", "battalions": [
+                { "name": "11th Royal Irish Rifles", "nick": "South Antrim", "involved": true }, { "name": "12th Royal Irish Rifles", "nick": "Central Antrim", "involved": true },
+                { "name": "13th Royal Irish Rifles", "nick": "Co. Down", "involved": true }, { "name": "9th Royal Irish Fusiliers", "nick": "Co. Armagh, Monaghan and Cavan", "involved": true } ] },
+              { "name": "109th Brigade", "battalions": [
+                { "name": "9th Royal Inniskilling Fusiliers", "nick": "Co. Tyrone", "involved": true }, { "name": "10th Royal Inniskilling Fusiliers", "nick": "Co. Derry", "involved": true },
+                { "name": "11th Royal Inniskilling Fusiliers", "nick": "Donegal and Fermanagh", "involved": true }, { "name": "14th Royal Irish Rifles", "nick": "Belfast Young Citizens", "involved": true } ] } ],
+              "pioneers": [{ "name": "16th Royal Irish Rifles", "nick": "2nd Co. Down", "involved": false }] },
+            { "name": "49th (West Riding) Division", "type": "TF", "commander": "Maj.-Gen. E. M. Perceval", "reserve": true, "brigades": [
+              { "name": "146th Brigade", "battalions": [
+                { "name": "1/5th West Yorks", "involved": true }, { "name": "1/6th West Yorks", "involved": true },
+                { "name": "1/7th West Yorks", "involved": true }, { "name": "1/8th West Yorks", "involved": true } ] },
+              { "name": "147th Brigade", "battalions": [
+                { "name": "1/4th Duke of Wellington's", "involved": false }, { "name": "1/5th Duke of Wellington's", "involved": false },
+                { "name": "1/6th Duke of Wellington's", "involved": false }, { "name": "1/7th Duke of Wellington's", "involved": false } ] },
+              { "name": "148th Brigade", "battalions": [
+                { "name": "1/4th York and Lancaster", "involved": false }, { "name": "1/5th York and Lancaster", "involved": true },
+                { "name": "1/4th King's Own Yorkshire Light Infantry", "involved": false }, { "name": "1/5th King's Own Yorkshire Light Infantry", "involved": false } ] } ],
+              "pioneers": [{ "name": "1/3rd Monmouths", "involved": false }] }
+          ]
+        },
+        {
+          "name": "XV Corps", "commander": "Lt-Gen. H. S. Horne",
+          "divisions": [
+            { "name": "7th Division", "type": "REG", "commander": "Maj.-Gen. H. E. Watts", "brigades": [
+              { "name": "20th Brigade", "battalions": [
+                { "name": "8th Devons", "involved": true }, { "name": "9th Devons", "involved": true },
+                { "name": "2nd Border", "involved": true }, { "name": "2nd Gordon Highlanders", "involved": true } ] },
+              { "name": "22nd Brigade", "battalions": [
+                { "name": "2nd Royal Warwicks", "involved": true }, { "name": "20th Manchesters", "nick": "5th Pals", "involved": true },
+                { "name": "1st Royal Welch Fusiliers", "involved": false }, { "name": "2nd Royal Irish", "involved": false } ] },
+              { "name": "91st Brigade", "battalions": [
+                { "name": "2nd Queen's", "involved": true }, { "name": "1st South Staffs", "involved": true },
+                { "name": "21st Manchesters", "nick": "6th Pals", "involved": true }, { "name": "22nd Manchesters", "nick": "7th Pals", "involved": true } ] } ],
+              "pioneers": [{ "name": "24th Manchesters", "nick": "Oldham Pals", "involved": false }] },
+            { "name": "17th (Northern) Division", "type": "NA", "commander": "Maj.-Gen. T. D. Pilcher", "reserve": true,
+              "note": "Corps reserve; only 50th Brigade (attached to 21st Division) was involved on 1 July.", "brigades": [
+              { "name": "50th Brigade", "attachedTo": "21st Division", "battalions": [
+                { "name": "10th West Yorks", "involved": true }, { "name": "7th East Yorks", "involved": true },
+                { "name": "7th Green Howards", "involved": true }, { "name": "6th Dorsets", "involved": false } ] },
+              { "name": "51st Brigade", "battalions": [
+                { "name": "7th Lincolns", "involved": false }, { "name": "7th Border", "involved": false },
+                { "name": "8th South Staffs", "involved": false }, { "name": "10th Sherwood Foresters", "involved": false } ] },
+              { "name": "52nd Brigade", "battalions": [
+                { "name": "9th Northumberland Fusiliers", "involved": false }, { "name": "10th Lancashire Fusiliers", "involved": false },
+                { "name": "9th Duke of Wellington's", "involved": false }, { "name": "12th Manchesters", "involved": false } ] } ],
+              "pioneers": [{ "name": "7th York and Lancaster", "involved": false }] },
+            { "name": "21st Division", "type": "NA", "commander": "Maj.-Gen. D. G. M. Campbell", "brigades": [
+              { "name": "62nd Brigade", "battalions": [
+                { "name": "12th Northumberland Fusiliers", "involved": true }, { "name": "13th Northumberland Fusiliers", "involved": true },
+                { "name": "1st Lincolns", "involved": true }, { "name": "10th Green Howards", "involved": true } ] },
+              { "name": "63rd Brigade", "battalions": [
+                { "name": "8th Lincolns", "involved": true }, { "name": "8th Somerset Light Infantry", "involved": true },
+                { "name": "4th Middlesex", "involved": true }, { "name": "10th York and Lancaster", "involved": true } ] },
+              { "name": "64th Brigade", "battalions": [
+                { "name": "9th King's Own Yorkshire Light Infantry", "involved": true }, { "name": "10th King's Own Yorkshire Light Infantry", "involved": true },
+                { "name": "1st East Yorks", "involved": true }, { "name": "15th Durham Light Infantry", "involved": true } ] } ],
+              "pioneers": [{ "name": "14th Northumberland Fusiliers", "involved": true }] }
+          ]
+        },
+        {
+          "name": "XIII Corps", "commander": "Lt-Gen. W. N. Congreve VC",
+          "divisions": [
+            { "name": "18th (Eastern) Division", "type": "NA", "commander": "Maj.-Gen. F. I. Maxse", "brigades": [
+              { "name": "53rd Brigade", "battalions": [
+                { "name": "8th Norfolks", "involved": true }, { "name": "6th Royal Berks", "involved": true },
+                { "name": "10th Essex", "involved": false }, { "name": "8th Suffolks", "involved": false } ] },
+              { "name": "54th Brigade", "note": "Companion lists 10th Royal Warwicks here instead of 11th Royal Fusiliers; Middlebrook followed.", "battalions": [
+                { "name": "11th Royal Fusiliers", "involved": true }, { "name": "7th Bedfords", "involved": true },
+                { "name": "6th Northamptons", "involved": true }, { "name": "12th Middlesex", "involved": true } ] },
+              { "name": "55th Brigade", "battalions": [
+                { "name": "7th Queen's", "involved": true }, { "name": "7th Buffs", "involved": true },
+                { "name": "8th East Surreys", "involved": true }, { "name": "7th Royal West Kents", "involved": true } ] } ],
+              "pioneers": [{ "name": "8th Royal Sussex", "involved": true }] },
+            { "name": "30th Division", "type": "NA", "commander": "Maj.-Gen. J. S. M. Shea", "brigades": [
+              { "name": "21st Brigade", "battalions": [
+                { "name": "18th King's", "nick": "2nd Liverpool Pals", "involved": true }, { "name": "19th Manchesters", "nick": "4th Pals", "involved": true },
+                { "name": "2nd Wilts", "involved": true }, { "name": "2nd Green Howards", "involved": true } ] },
+              { "name": "89th Brigade", "battalions": [
+                { "name": "17th King's", "nick": "1st Liverpool Pals", "involved": true }, { "name": "19th King's", "nick": "3rd Liverpool Pals", "involved": false },
+                { "name": "20th King's", "nick": "4th Liverpool Pals", "involved": true }, { "name": "2nd Bedfords", "involved": true } ] },
+              { "name": "90th Brigade", "battalions": [
+                { "name": "2nd Royal Scots Fusiliers", "involved": true }, { "name": "16th Manchesters", "nick": "1st Pals", "involved": true },
+                { "name": "17th Manchesters", "nick": "2nd Pals", "involved": true }, { "name": "18th Manchesters", "nick": "3rd Pals", "involved": true } ] } ],
+              "pioneers": [{ "name": "11th South Lancs", "involved": true }] }
+          ],
+          "reserve": "9th (Scottish) Division (did not attack on 1 July)"
+        }
+      ]
+    },
+    {
+      "name": "Third Army", "commander": "Gen. Sir E. Allenby",
+      "corps": [
+        {
+          "name": "VII Corps", "commander": "Lt-Gen. Sir T. D'O. Snow",
+          "divisions": [
+            { "name": "46th (North Midland) Division", "type": "TF", "commander": "Maj.-Gen. Hon. E. J. Montagu-Stuart-Wortley", "brigades": [
+              { "name": "137th Brigade", "battalions": [
+                { "name": "1/5th South Staffs", "involved": true }, { "name": "1/6th South Staffs", "involved": true },
+                { "name": "1/5th North Staffs", "involved": true }, { "name": "1/6th North Staffs", "involved": true } ] },
+              { "name": "138th Brigade", "battalions": [
+                { "name": "1/4th Lincolns", "involved": true }, { "name": "1/5th Lincolns", "involved": true },
+                { "name": "1/4th Leicesters", "involved": false }, { "name": "1/5th Leicesters", "involved": false } ] },
+              { "name": "139th Brigade", "battalions": [
+                { "name": "1/5th Sherwood Foresters", "involved": true }, { "name": "1/6th Sherwood Foresters", "involved": true },
+                { "name": "1/7th Sherwood Foresters", "involved": true }, { "name": "1/8th Sherwood Foresters", "involved": false } ] } ],
+              "pioneers": [{ "name": "1/1st Monmouths", "involved": false }] },
+            { "name": "56th (London) Division", "type": "TF", "commander": "Maj.-Gen. C. P. A. Hull", "brigades": [
+              { "name": "167th Brigade", "battalions": [
+                { "name": "1/1st London", "involved": false }, { "name": "1/3rd London", "involved": true },
+                { "name": "1/7th Middlesex", "involved": false }, { "name": "1/8th Middlesex", "involved": false } ] },
+              { "name": "168th Brigade", "battalions": [
+                { "name": "1/4th London", "involved": true }, { "name": "1/12th London", "nick": "Rangers", "involved": true },
+                { "name": "1/13th London", "nick": "Kensington", "involved": true }, { "name": "1/14th London", "nick": "1st London Scottish", "involved": true } ] },
+              { "name": "169th Brigade", "battalions": [
+                { "name": "1/2nd London", "involved": true }, { "name": "1/5th London", "nick": "1st London Rifle Brigade", "involved": true },
+                { "name": "1/9th London", "nick": "Queen Victoria's Rifles", "involved": true }, { "name": "1/16th London", "nick": "Queen's Westminster Rifles", "involved": true } ] } ],
+              "pioneers": [{ "name": "1/5th Cheshires", "involved": true }] }
+          ],
+          "reserve": "37th Division"
+        }
+      ]
+    }
+  ]
+}
