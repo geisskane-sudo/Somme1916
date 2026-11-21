@@ -38,6 +38,10 @@ export class BattleView {
     const men = R.men[m0 * n + i] * (1 - f) + R.men[m1 * n + i] * f;
     return { depth, men, state: R.state[m0 * n + i] };
   }
+  /** is there a British-held trench in this stretch within 35 m of depth? */
+  heldNear(cell: number, depth: number, t: number) { for (const id of this.b.cells[cell].secs) if (Math.abs(this.b.secs[id].depth - depth) < 35 && this.owner(id, t)) return true; return false; }
+  /** strips drawn as individual men instead of blocks */
+  hide: Set<number> | null = null;
   owner(sec: number, t: number) { const { m0 } = this.idx(t); return this.b.rec.owner[m0 * this.b.rec.nSec + sec]; }
   totals(t: number) { const { m0, m1, f } = this.idx(t), c = this.b.rec.cas; const v = (k: number) => c[m0 * 4 + k] * (1 - f) + c[m1 * 4 + k] * f; return { b: v(0), bk: v(1), g: v(2), gp: v(3) }; }
   divCas(name: string, t: number) { const k = this.b.divNames.indexOf(name); if (k < 0) return null; const { m0, m1, f } = this.idx(t), n = this.b.divNames.length, d = this.b.rec.divCas; return d[m0 * n + k] * (1 - f) + d[m1 * n + k] * f; }
@@ -52,10 +56,12 @@ export class BattleView {
     if (cam.dist < 16000) for (const s of b.secs) {
       if (!this.owner(s.id, t)) continue;
       const c = b.cells[s.cell], w = b.world(c.s, s.depth), tx = w.az, tz = -w.ax;
-      r.flatQuad(w.x, w.z, tx * CELL * 0.5, tz * CELL * 0.5, w.ax * 16 * scale, w.az * 16 * scale, 0.86, 0.12, 0.1, 0.42, 2);
+      const closeUp = this.hide && this.hide.size > 0 && cam.dist < 2200;
+      r.flatQuad(w.x, w.z, tx * CELL * 0.5, tz * CELL * 0.5, w.ax * (closeUp ? 5 : 16 * scale), w.az * (closeUp ? 5 : 16 * scale), 0.86, 0.12, 0.1, closeUp ? 0.22 : 0.42, 2);
     }
     // companies
     for (const c of b.strips) {
+      if (this.hide?.has(c.id)) continue;
       const { depth, men, state } = this.stripAt(c.id, t);
       if (men < 1 || state === ST.spent && cam.dist > 4000) continue;
       const w = b.world(c.s, depth), tx = w.az, tz = -w.ax;

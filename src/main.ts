@@ -5,6 +5,8 @@ import { buildUnits, type Battalion } from './units';
 import { Renderer, Camera, type Burst } from './render';
 import { Battle } from './battle';
 import { BattleView } from './battleview';
+import { paintGround, loadSheet } from './closeground';
+import { Soldiers } from './soldiers';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -18,7 +20,11 @@ function boot() {
   const cam = new Camera(dem);
   const battle = new Battle(units, divs); battle.begin();
   const bv = new BattleView(battle, r, units);
+  const men = new Soldiers(battle, bv, r, dem); bv.hide = men.shown;
+  let anim = 0;
   r.showBattalions = false;
+  paintGround(r);
+  let sheetReady = false; loadSheet(r).then(() => (sheetReady = true)).catch(() => {});
   let simDone = false;
   const L = r.lines;
   const G = resample(L.german, 30), Bf = resample(L.british, 30), S2 = resample(L.second, 30);
@@ -292,6 +298,10 @@ function boot() {
     else if (v) { const c = corpsByName.get(v)!; fly(c.x, c.z, 6500); showCorps(c.name); }
   };
   $('b-help').onclick = () => $('help').classList.toggle('hidden');
+  $('b-map').onclick = () => {
+    r.mapOpacity = r.mapOpacity > 0 ? 0 : 0.85; $('b-map').classList.toggle('on', r.mapOpacity > 0);
+    if (r.mapOpacity > 0) { if (!sheetReady) toast('The 1916 map is still loading'); fly(-2350, 150, 2600); toast('1:5000 trench map, Schwaben Redoubt and Thiepval (trenches corrected to 20 October 1916)'); }
+  };
   $('help').onclick = e => { if ((e.target as HTMLElement).id === 'help' || (e.target as HTMLElement).tagName === 'BUTTON') $('help').classList.add('hidden'); };
   $('begin').onclick = () => { $('intro').classList.add('hidden'); play(true); };
 
@@ -313,6 +323,8 @@ function boot() {
     // crater decals once a mine has gone up
     const decals: number[] = [];
     for (const m of mines) if (t >= m.t) { const R = m.crater_m * 0.8 + 6; r.quad(decals, m.p.x, m.p.z, R, 0, 0, R, [0.33, 0.29, 0.24, 0.95], 1, 2); r.quad(decals, m.p.x, m.p.z, R * 2.4, 0, 0, R * 2.4, [0.86, 0.84, 0.78, 0.55], 1, 1.5); }
+    if (playing) anim += dt;
+    men.update(t, cam, anim, playing);
     bv.draw(t, cam); moveBnLabels();
     r.render(cam, light(t), decals, dt);
     $('clock').textContent = `${hhmm(t)}`;
@@ -329,7 +341,7 @@ function boot() {
   $('loading').classList.add('hidden');
   $('intro').classList.remove('hidden');
   requestAnimationFrame(frame);
-  (window as any).__app = { cam, r, units, divs, corps, battle, bv, get simDone() { return simDone; }, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
+  (window as any).__app = { cam, r, units, divs, corps, battle, bv, men, get simDone() { return simDone; }, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
 }
 
 window.addEventListener('error', e => { const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Error: ' + e.message; });

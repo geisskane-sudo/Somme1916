@@ -16,9 +16,18 @@ void main(){ vPos=aPos; vN=aN; vUV=aUV; gl_Position=uVP*vec4(aPos,1.0); }`;
 const TERRAIN_FS = `#version 300 es
 precision highp float;
 in vec3 vPos; in vec3 vN; in vec2 vUV; uniform sampler2D uTex; uniform vec3 uSun, uSunCol, uSky, uCam, uFog; uniform float uFogDen, uContour;
+uniform sampler2D uDetail, uMap; uniform vec4 uDB; uniform float uDetailOn, uMapOn; uniform vec3 uMapA, uMapB; uniform vec4 uMapFrame;
 out vec4 o;
 void main(){
   vec3 base = texture(uTex, vUV).rgb;
+  if (uDetailOn > 0.0) {
+    vec2 du = (vPos.xz - uDB.xy) / (uDB.zw - uDB.xy);
+    if (du.x > 0.0 && du.y > 0.0 && du.x < 1.0 && du.y < 1.0) { vec4 dt = texture(uDetail, du); base = mix(base, dt.rgb, dt.a * uDetailOn); }
+  }
+  if (uMapOn > 0.0) {
+    vec2 mu = vec2(dot(uMapA, vec3(vPos.xz, 1.0)), dot(uMapB, vec3(vPos.xz, 1.0)));
+    if (mu.x > uMapFrame.x && mu.y > uMapFrame.y && mu.x < uMapFrame.z && mu.y < uMapFrame.w) base = mix(base, texture(uMap, mu).rgb, uMapOn);
+  }
   float h = vPos.y / 10.0; float fw = fwidth(h);
   float c = 1.0 - smoothstep(0.0, 1.2, abs(fract(h + 0.5) - 0.5) / max(fw, 1e-4));
   base *= 1.0 - c * 0.16 * uContour * (1.0 - smoothstep(0.06, 0.25, fw));
@@ -49,6 +58,39 @@ void main(){
   float a = 1.0 - smoothstep(0.6, 1.0, abs(vSide));
   if (uDash > 0.0) { float k = fract(vU / (uDash * vPxM)); if (k > 0.55) discard; }
   o = vec4(uColor.rgb, uColor.a * (0.35 + 0.65 * a));
+}`;
+const FIG_VS = `#version 300 es
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aN; layout(location=2) in float aPart;
+layout(location=3) in vec4 iPY; layout(location=4) in vec4 iPS;
+uniform mat4 uVP; uniform float uSwing;
+out vec3 vN; out vec3 vCol; out vec3 vW;
+mat3 rx(float a){ float c=cos(a), s=sin(a); return mat3(1.,0.,0., 0.,c,s, 0.,-s,c); }
+void main(){
+  vec3 p = aPos, n = aN;
+  if (aPart > 0.5 && uSwing > 0.0) {
+    float side = aPart < 1.5 ? 1.0 : (aPart < 2.5 ? -1.0 : 0.0);
+    float a = aPart > 2.5 ? -0.5 * sin(iPS.x) * uSwing : sin(iPS.x) * uSwing * side;
+    vec3 piv = aPart > 2.5 ? vec3(0., 1.4, 0.) : vec3(0., 0.85, 0.);
+    p = rx(a) * (p - piv) + piv; n = rx(a) * n;
+  }
+  p *= iPS.y;
+  float c = cos(iPY.w), s = sin(iPY.w);
+  p = vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); n = vec3(c * n.x + s * n.z, n.y, -s * n.x + c * n.z);
+  vec3 w = p + iPY.xyz; vW = w; vN = n;
+  // colour: instance base; helmets and boots darker, by height in the model
+  float k = aPart > 3.5 ? 0.55 : 1.0;
+  vCol = vec3(fract(iPS.z), fract(iPS.z * 256.0), fract(iPS.w)) * k;
+  vCol = mix(vCol, vec3(0.16, 0.13, 0.1), step(4.5, aPart));
+  gl_Position = uVP * vec4(w, 1.0);
+}`;
+const FIG_FS = `#version 300 es
+precision highp float;
+in vec3 vN; in vec3 vCol; in vec3 vW; uniform vec3 uSun, uSunCol, uSky, uCam, uFog; uniform float uFogDen; out vec4 o;
+void main(){
+  vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n; float dif = max(dot(n, uSun), 0.0);
+  vec3 col = vCol * 1.25 * (uSunCol * dif * 1.15 + uSky * (0.85 + 0.35 * n.y) + 0.15);
+  col = mix(col, uFog, 1.0 - exp(-length(vW - uCam) * uFogDen));
+  o = vec4(col, 1.0);
 }`;
 const BLOCK_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec2 aUV; layout(location=2) in vec4 aCol; layout(location=3) in float aShape;
@@ -135,8 +177,16 @@ export class Renderer {
   private pR: WebGLProgram; private uR: Record<string, WebGLUniformLocation | null>;
   private pB: WebGLProgram; private uB: Record<string, WebGLUniformLocation | null>;
   private pP: WebGLProgram; private uP: Record<string, WebGLUniformLocation | null>;
+  private pF!: WebGLProgram; private uF!: Record<string, WebGLUniformLocation | null>;
+  private figMesh: { vao: WebGLVertexArrayObject; inst: WebGLBuffer; n: number }[] = [];
+  /** per pose: instance data (x, y, z, yaw, phase, scale, colour-packed rg, colour b) and count */
+  figs: { data: Float32Array; n: number }[] = [];
   private terrain!: { vao: WebGLVertexArrayObject; n: number; type: number };
   private tex!: WebGLTexture;
+  private detail: { tex: WebGLTexture; box: number[] } | null = null;
+  private map: { tex: WebGLTexture; a: number[]; b: number[]; frame: number[] } | null = null;
+  /** 0..1: how strongly the 1916 map is shown on the ground */
+  mapOpacity = 0;
   private ribbons: Ribbon[] = [];
   private blocks!: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number; nBn: number };
   /** draw the static battalion start positions (off once companies are drawn from the battle) */
@@ -155,9 +205,11 @@ export class Renderer {
     if (!gl) throw new Error('This browser does not support WebGL2.');
     this.gl = gl;
     gl.getExtension('OES_texture_float_linear');
-    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour']);
+    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour', 'uDetail', 'uMap', 'uDB', 'uDetailOn', 'uMapOn', 'uMapA', 'uMapB', 'uMapFrame']);
     this.pR = createProgram(gl, RIBBON_VS, RIBBON_FS); this.uR = uniforms(gl, this.pR, ['uVP', 'uCam', 'uPx', 'uWidth', 'uLift', 'uColor', 'uDash']);
     this.pB = createProgram(gl, BLOCK_VS, BLOCK_FS); this.uB = uniforms(gl, this.pB, ['uVP']);
+    this.pF = createProgram(gl, FIG_VS, FIG_FS); this.uF = uniforms(gl, this.pF, ['uVP', 'uSwing', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen']);
+    this.buildFigures();
     this.pP = createProgram(gl, POINT_VS, POINT_FS); this.uP = uniforms(gl, this.pP, ['uVP', 'uCam', 'uPx']);
     this.lines = {
       british: pts(GEO.britishFront), german: pts(GEO.germanFront), second: pts(GEO.germanSecond),
@@ -356,6 +408,65 @@ export class Renderer {
     this.blocks = { ...b, n: out.length / 10, nBn };
   }
 
+  // ---------- soldiers ----------
+  private buildFigures() {
+    const gl = this.gl;
+    for (let pose = 0; pose < FIG_POSES; pose++) {
+      const v = figureMesh(pose);
+      const vao = gl.createVertexArray()!; gl.bindVertexArray(vao);
+      const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0);
+      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 12);
+      gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 28, 24);
+      const inst = gl.createBuffer()!; gl.bindBuffer(gl.ARRAY_BUFFER, inst);
+      gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 32, 0); gl.vertexAttribDivisor(3, 1);
+      gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.FLOAT, false, 32, 16); gl.vertexAttribDivisor(4, 1);
+      gl.bindVertexArray(null);
+      this.figMesh.push({ vao, inst, n: v.length / 7 });
+      this.figs.push({ data: new Float32Array(8 * 4096), n: 0 });
+    }
+  }
+  /** add a soldier: pose (FIG.*), position, facing (radians, 0 = +z), walk phase, scale, colour */
+  fig(pose: number, x: number, y: number, z: number, yaw: number, phase: number, scale: number, r: number, g: number, b: number) {
+    const F = this.figs[pose];
+    if ((F.n + 1) * 8 > F.data.length) { const d = new Float32Array(F.data.length * 2); d.set(F.data); F.data = d; }
+    const o = F.n++ * 8, A = F.data;
+    A[o] = x; A[o + 1] = y; A[o + 2] = z; A[o + 3] = yaw; A[o + 4] = phase; A[o + 5] = scale;
+    A[o + 6] = Math.min(255, Math.round(r * 255)) / 256 + Math.min(255, Math.round(g * 255)) / 65536 + 1e-6; A[o + 7] = b;
+  }
+  clearFigs() { for (const F of this.figs) F.n = 0; }
+  private drawFigs(cam: Camera, light: { sun: number[]; sunCol: number[]; sky: number[]; fog: number[] }) {
+    const gl = this.gl; if (!this.figs.some(F => F.n)) return;
+    gl.useProgram(this.pF); gl.uniformMatrix4fv(this.uF.uVP, false, cam.vp);
+    gl.uniform3fv(this.uF.uSun, light.sun); gl.uniform3fv(this.uF.uSunCol, light.sunCol); gl.uniform3fv(this.uF.uSky, light.sky);
+    gl.uniform3f(this.uF.uCam, cam.ex, cam.ey, cam.ez); gl.uniform3fv(this.uF.uFog, light.fog); gl.uniform1f(this.uF.uFogDen, 0.6 / (cam.dist * 3 + 8000));
+    gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
+    this.figs.forEach((F, pose) => {
+      if (!F.n) return;
+      const M = this.figMesh[pose];
+      gl.uniform1f(this.uF.uSwing, pose === FIG.walk ? 0.45 : pose === FIG.run ? 0.8 : 0);
+      gl.bindVertexArray(M.vao); gl.bindBuffer(gl.ARRAY_BUFFER, M.inst); gl.bufferData(gl.ARRAY_BUFFER, F.data.subarray(0, F.n * 8), gl.DYNAMIC_DRAW);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, M.n, F.n);
+    });
+    gl.enable(gl.BLEND); gl.bindVertexArray(null);
+  }
+
+  // ---------- close-up layers ----------
+  private upload(src: TexImageSource) {
+    const gl = this.gl, t = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const ext = gl.getExtension('EXT_texture_filter_anisotropic'); if (ext) gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, 8);
+    return t;
+  }
+  /** detailed ground painting over an axis-aligned box [x0, z0, x1, z1] in local metres */
+  setDetail(src: TexImageSource, box: number[]) { this.detail = { tex: this.upload(src), box }; }
+  /** a map image draped on the ground: rows a, b map (x, z, 1) to texture u, v; frame = [u0, v0, u1, v1] */
+  setMap(src: TexImageSource, a: number[], b: number[], frame: number[]) { this.map = { tex: this.upload(src), a, b, frame }; }
+
   // ---------- per-frame shapes from the battle ----------
   /** start a new frame's worth of flat quads */
   clearFlat() { this.flatN = 0; }
@@ -416,6 +527,11 @@ export class Renderer {
     gl.uniform3f(this.uT.uCam, cam.ex, cam.ey, cam.ez); gl.uniform3fv(this.uT.uFog, light.fog);
     gl.uniform1f(this.uT.uFogDen, 0.6 / (cam.dist * 3 + 8000)); gl.uniform1f(this.uT.uContour, 1);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex); gl.uniform1i(this.uT.uTex, 0);
+    const dOn = this.detail ? clamp((7000 - cam.dist) / 3500, 0, 1) : 0;
+    gl.uniform1f(this.uT.uDetailOn, dOn); gl.uniform1f(this.uT.uMapOn, this.map ? this.mapOpacity : 0);
+    if (this.detail) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.detail.tex); gl.uniform1i(this.uT.uDetail, 1); gl.uniform4fv(this.uT.uDB, this.detail.box); }
+    if (this.map) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.map.tex); gl.uniform1i(this.uT.uMap, 2); gl.uniform3fv(this.uT.uMapA, this.map.a); gl.uniform3fv(this.uT.uMapB, this.map.b); gl.uniform4fv(this.uT.uMapFrame, this.map.frame); }
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindVertexArray(this.terrain.vao); gl.drawElements(gl.TRIANGLES, this.terrain.n, this.terrain.type, 0);
     gl.disable(gl.CULL_FACE);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -425,6 +541,7 @@ export class Renderer {
     gl.bindVertexArray(this.blocks.vao);
     if (this.showBattalions) gl.drawArrays(gl.TRIANGLES, 0, this.blocks.n); else gl.drawArrays(gl.TRIANGLES, this.blocks.nBn, this.blocks.n - this.blocks.nBn);
     if (this.flatN) { gl.bindVertexArray(this.dyn.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.dyn.buf); gl.bufferData(gl.ARRAY_BUFFER, this.flat.subarray(0, this.flatN * 10), gl.DYNAMIC_DRAW); gl.drawArrays(gl.TRIANGLES, 0, this.flatN); }
+    this.drawFigs(cam, light);
     // ribbons
     gl.useProgram(this.pR);
     gl.uniformMatrix4fv(this.uR.uVP, false, cam.vp); gl.uniform3f(this.uR.uCam, cam.ex, cam.ey, cam.ez); gl.uniform1f(this.uR.uPx, cam.px);
@@ -455,4 +572,60 @@ export class Renderer {
     }
     gl.bindVertexArray(null);
   }
+}
+
+// ---------------- soldier meshes ----------------
+export const FIG = { walk: 0, run: 1, kneel: 2, prone: 3, dead: 4, stand: 5, gun: 6 } as const;
+const FIG_POSES = 7;
+type M3 = number[]; // row-major 3x3
+const RX = (a: number): M3 => [1, 0, 0, 0, Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a)];
+const RZ = (a: number): M3 => [Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a), 0, 0, 0, 1];
+const MUL = (a: M3, b: M3): M3 => [0, 1, 2].flatMap(i => [0, 1, 2].map(j => a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j]));
+const AP = (m: M3, v: number[]) => [m[0] * v[0] + m[1] * v[1] + m[2] * v[2], m[3] * v[0] + m[4] * v[1] + m[5] * v[2], m[6] * v[0] + m[7] * v[1] + m[8] * v[2]];
+const I3: M3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+/** parts: 0 body, 1 left leg, 2 right leg, 3 arms, 4 boots and rifle (darker), 5 helmet */
+function box(out: number[], c: number[], h: number[], part: number, m: M3 = I3, piv = [0, 0, 0], off = [0, 0, 0]) {
+  const F: [number[], number[][]][] = [
+    [[1, 0, 0], [[1, -1, -1], [1, 1, -1], [1, 1, 1], [1, -1, 1]]], [[-1, 0, 0], [[-1, -1, 1], [-1, 1, 1], [-1, 1, -1], [-1, -1, -1]]],
+    [[0, 1, 0], [[-1, 1, -1], [-1, 1, 1], [1, 1, 1], [1, 1, -1]]], [[0, -1, 0], [[-1, -1, 1], [-1, -1, -1], [1, -1, -1], [1, -1, 1]]],
+    [[0, 0, 1], [[1, -1, 1], [1, 1, 1], [-1, 1, 1], [-1, -1, 1]]], [[0, 0, -1], [[-1, -1, -1], [-1, 1, -1], [1, 1, -1], [1, -1, -1]]],
+  ];
+  for (const [n, q] of F) {
+    const P = q.map(k => { const p = [c[0] + k[0] * h[0] - piv[0], c[1] + k[1] * h[1] - piv[1], c[2] + k[2] * h[2] - piv[2]]; const r = AP(m, p); return [r[0] + piv[0] + off[0], r[1] + piv[1] + off[1], r[2] + piv[2] + off[2]]; });
+    const N = AP(m, n);
+    for (const i of [0, 2, 1, 0, 3, 2]) out.push(...P[i], ...N, part);
+  }
+}
+function figureMesh(pose: number) {
+  const v: number[] = [];
+  if (pose === FIG.gun) { // machine gun on its sledge mount
+    box(v, [0, 0.35, 0.1], [0.08, 0.08, 0.45], 4); box(v, [0, 0.42, -0.25], [0.12, 0.12, 0.2], 4);
+    box(v, [0, 0.15, -0.15], [0.3, 0.04, 0.35], 4); box(v, [0, 0.2, 0.32], [0.18, 0.1, 0.03], 4);
+    return v;
+  }
+  // a standing man facing +z; the upper body can lean or be posed
+  const legs = (m: M3, piv: number[], off: number[]) => {
+    box(v, [0.1, 0.45, 0], [0.075, 0.42, 0.08], 1, m, piv, off); box(v, [-0.1, 0.45, 0], [0.075, 0.42, 0.08], 2, m, piv, off);
+    box(v, [0.1, 0.04, 0.03], [0.08, 0.04, 0.12], 4, m, piv, off); box(v, [-0.1, 0.04, 0.03], [0.08, 0.04, 0.12], 4, m, piv, off);
+  };
+  const upper = (m: M3, piv: number[], off: number[], aim: boolean) => {
+    box(v, [0, 1.17, 0], [0.2, 0.3, 0.12], 0, m, piv, off);                    // torso
+    box(v, [0, 1.38, 0.02], [0.17, 0.08, 0.14], 0, m, piv, off);              // pack and shoulders
+    box(v, [0, 1.58, 0.01], [0.09, 0.1, 0.1], 0, m, piv, off);                // head
+    box(v, [0, 1.7, 0.01], [0.17, 0.025, 0.17], 5, m, piv, off);              // helmet brim
+    box(v, [0, 1.73, 0.01], [0.1, 0.04, 0.1], 5, m, piv, off);
+    if (aim) { box(v, [0.15, 1.36, 0.3], [0.05, 0.05, 0.3], 3, m, piv, off); box(v, [-0.12, 1.33, 0.35], [0.05, 0.05, 0.3], 3, m, piv, off); box(v, [0.06, 1.38, 0.55], [0.025, 0.03, 0.6], 4, m, piv, off); }
+    else { box(v, [0.27, 1.12, 0.05], [0.05, 0.28, 0.06], 3, m, piv, off); box(v, [-0.27, 1.12, 0.05], [0.05, 0.28, 0.06], 3, m, piv, off); box(v, [0.18, 1.2, 0.2], [0.025, 0.55, 0.03], 4, MUL(m, RX(0.6)), [0.18, 1.2, 0.2], off); }
+  };
+  if (pose === FIG.walk || pose === FIG.stand) { legs(I3, [0, 0, 0], [0, 0, 0]); upper(RX(0.08), [0, 0.85, 0], [0, 0, 0], false); }
+  else if (pose === FIG.run) { legs(I3, [0, 0, 0], [0, 0, 0]); upper(RX(0.35), [0, 0.85, 0], [0, -0.05, 0], false); }
+  else if (pose === FIG.kneel) {
+    box(v, [0.1, 0.45, 0.25], [0.075, 0.08, 0.25], 0); box(v, [0.1, 0.22, 0.48], [0.075, 0.22, 0.08], 0); // forward thigh and shin
+    box(v, [-0.1, 0.5, -0.05], [0.075, 0.08, 0.25], 0, RX(1.2), [-0.1, 0.5, 0]); box(v, [-0.1, 0.08, -0.3], [0.075, 0.06, 0.22], 0);
+    upper(I3, [0, 0, 0], [0, -0.38, 0], true);
+  } else { // prone or dead: the standing figure laid down
+    const m = pose === FIG.prone ? RX(Math.PI / 2) : MUL(RZ(1.2), RX(-Math.PI / 2));
+    legs(m, [0, 0.12, 0], [0, -0.0, 0]); upper(MUL(m, pose === FIG.prone ? I3 : RX(0.4)), [0, 0.12, 0], [0, 0, 0], pose === FIG.prone);
+  }
+  return v;
 }
