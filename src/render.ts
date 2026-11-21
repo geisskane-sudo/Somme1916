@@ -5,6 +5,7 @@ import { createProgram, uniforms } from './render/gl';
 import { mat4, perspective, lookAt, multiply, invert, transformPoint, clamp } from './core/math';
 import { GEO, Dem, toXZ, toLL, pts, resample, offsetAway, type P, type LL } from './geo';
 import type { Battalion } from './units';
+import traced from '../data/trenches.json';
 
 const TEX = 4096;
 
@@ -311,30 +312,43 @@ export class Renderer {
         g.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, m(12 + rnd() * 14), m(10 + rnd() * 12));
       }
     }
-    // trench systems (schematic: front, support and reserve trenches behind each front line)
+    // schematic trench systems, used only where no trench map has been traced (drawn on their own layer,
+    // then cut away wherever a traced sheet covers the ground)
+    const sheetsC = Object.values(traced.sheets as unknown as Record<string, { corners: [number, number][] }>).map(s => s.corners);
+    const main = g, layer = document.createElement('canvas'); layer.width = layer.height = TEX;
+    const lg = layer.getContext('2d')!; lg.lineCap = 'round'; lg.lineJoin = 'round';
     const trench = (p: P[], col: string, w: number, zig: boolean) => {
       const q = resample(p, 18);
-      g.beginPath();
+      lg.beginPath();
       q.forEach((s, i) => {
         let [x, y] = Pm(s);
-        if (zig && i > 0 && i < q.length - 1) { const a = q[i - 1], b = q[i + 1]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const o = (i % 2 ? 1 : -1) * m(6); x += nx / L * o; y += nz / L * o * (TEX / TEX); }
-        i ? g.lineTo(x, y) : g.moveTo(x, y);
+        if (zig && i > 0 && i < q.length - 1) { const a = q[i - 1], b = q[i + 1]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const o = (i % 2 ? 1 : -1) * m(6); x += nx / L * o; y += nz / L * o; }
+        i ? lg.lineTo(x, y) : lg.moveTo(x, y);
       });
-      // chalk spoil either side, the trench itself dark
-      g.strokeStyle = 'rgba(226,220,200,0.85)'; g.lineWidth = w + 3; g.stroke();
-      g.strokeStyle = col; g.lineWidth = w; g.stroke();
+      lg.strokeStyle = 'rgba(226,220,200,0.85)'; lg.lineWidth = w + 3; lg.stroke();
+      lg.strokeStyle = col; lg.lineWidth = w; lg.stroke();
     };
-    // German wire belts in front of their front line
-    { const q = resample(offsetAway(G, -35, B), 12); g.beginPath(); q.forEach((s, i) => { const [x, y] = Pm(s); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = 'rgba(55,45,35,0.55)'; g.lineWidth = m(14); g.setLineDash([2, 2]); g.stroke(); g.setLineDash([]); }
+    { const q = resample(offsetAway(G, -35, B), 12); lg.beginPath(); q.forEach((s, i) => { const [x, y] = Pm(s); i ? lg.lineTo(x, y) : lg.moveTo(x, y); }); lg.strokeStyle = 'rgba(55,45,35,0.55)'; lg.lineWidth = m(14); lg.setLineDash([2, 2]); lg.stroke(); lg.setLineDash([]); }
     trench(G, '#4a3a2e', 3, true);
     trench(offsetAway(G, 140, B), '#55463a', 2.2, true);
     trench(offsetAway(G, 300, B), '#55463a', 2, true);
     trench(this.lines.second, '#55463a', 2.2, true);
     trench(offsetAway(this.lines.second, 130, B), '#55463a', 1.6, true);
-    trench(B, '#4a3a2e', 2.6, true);
-    trench(offsetAway(B, 160, G), '#55463a', 1.8, true);
-    // German wire in front of their front line
-    
+    lg.globalCompositeOperation = 'destination-out'; lg.fillStyle = '#000';
+    for (const c of sheetsC) { lg.beginPath(); c.forEach(([x, z], i) => { const [u, v] = Pm({ x, z }); i ? lg.lineTo(u, v) : lg.moveTo(u, v); }); lg.closePath(); lg.fill(); }
+    main.drawImage(layer, 0, 0);
+    // the German trench network traced from the 1916 trench maps
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    const tl = (traced.lines as unknown as { p: [number, number][] }[]);
+    const path = () => { g.beginPath(); for (const l of tl) l.p.forEach(([x, z], i) => { const [u, v] = Pm({ x, z }); i ? g.lineTo(u, v) : g.moveTo(u, v); }); };
+    path(); g.strokeStyle = 'rgba(226,220,200,0.85)'; g.lineWidth = 3.4; g.stroke();
+    path(); g.strokeStyle = '#4a3a2e'; g.lineWidth = 1.6; g.stroke();
+    // British front and support trenches (not on the German-trench tracing)
+    g.globalCompositeOperation = 'source-over';
+    const bt = (p: P[], col: string, w: number) => { const q = resample(p, 18); g.beginPath(); q.forEach((s, i) => { let [x, y] = Pm(s); if (i > 0 && i < q.length - 1) { const a = q[i - 1], b = q[i + 1]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const o = (i % 2 ? 1 : -1) * m(6); x += nx / L * o; y += nz / L * o; } i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = 'rgba(226,220,200,0.85)'; g.lineWidth = w + 3; g.stroke(); g.strokeStyle = col; g.lineWidth = w; g.stroke(); };
+    bt(B, '#4a3a2e', 2.6);
+    bt(offsetAway(B, 160, G), '#55463a', 1.8);
+
     const gl = this.gl;
     this.tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, this.tex);

@@ -5,7 +5,7 @@ import { buildUnits, type Battalion } from './units';
 import { Renderer, Camera, type Burst } from './render';
 import { Battle } from './battle';
 import { BattleView } from './battleview';
-import { paintGround, loadSheet } from './closeground';
+import { loadSheet } from './closeground';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -20,7 +20,6 @@ function boot() {
   const battle = new Battle(units, divs); battle.begin();
   const bv = new BattleView(battle, r, units);
   r.showBattalions = false;
-  paintGround(r);
   let sheetReady = false; loadSheet(r).then(() => (sheetReady = true)).catch(() => {});
   let simDone = false;
   const L = r.lines;

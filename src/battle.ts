@@ -15,7 +15,7 @@
 import plan from '../data/plan.json';
 import record from '../data/record.json';
 import steer from '../data/steer.json';
-import thiepval from '../data/thiepval.json';
+import trenches from '../data/trenches.json';
 import { GEO, pts, resample, project, at, toXZ, type P } from './geo';
 import type { Battalion, DivInfo } from './units';
 
@@ -26,7 +26,7 @@ const DT = 1 / 3;
 export const ST = { wait: 0, advance: 1, halted: 2, assault: 3, hold: 4, pinned: 5, retire: 6, spent: 7, home: 8, mop: 9 } as const;
 export const ST_NAME = ['waiting in the trenches', 'advancing', 'waiting for the barrage to lift', 'assaulting a trench', 'holding a captured trench', 'pinned down in no man\'s land', 'falling back', 'broken up', 'back in the British lines', 'clearing dugouts'];
 
-export interface Cell { /** German trench depths from a georeferenced 1:5000 sheet, where one covers this stretch */ traced?: number[]; i: number; s: number; bx: number; bz: number; ax: number; az: number; w: number; d2: number | null; corps: string; div: string | null; reg: number; secs: number[]; lastRevert: number; push: number }
+export interface Cell { /** German trench depths traced from the trench maps, where a sheet covers this stretch: [front, support?, reserve?] and intermediates */ traced?: number[]; tracedInter?: number[]; i: number; s: number; bx: number; bz: number; ax: number; az: number; w: number; d2: number | null; corps: string; div: string | null; reg: number; secs: number[]; lastRevert: number; push: number }
 export interface Section { id: number; cell: number; line: number; depth: number; kind: string; gar: number; gar0: number; mg: number; owner: 0 | 1; lift: number; tau: number; hidden: number; capturedAt: number; sp: string | null }
 /** one company's strip in one cell */
 export interface Strip {
@@ -149,8 +149,8 @@ export class Battle {
         const tt = ((p1.x - b.x) * ez - (p1.z - b.z) * ex) / den, u = ((p1.x - b.x) * az - (p1.z - b.z) * ax) / den;
         if (u >= 0 && u <= 1 && tt > w + 400 && tt < 5000 && (d2 === null || tt < d2)) d2 = tt;
       }
-      const tr = tracedDepths(b.x, b.z, ax, az, w);
-      this.cells.push({ traced: tr ?? undefined, i, s, bx: b.x, bz: b.z, ax, az, w: tr ? tr[0] : w, d2, corps: corpsOf.get(nearest.div) ?? 'X Corps', div: inDiv ? inDiv.div : null, reg, secs: [], lastRevert: -99, push: 0 });
+      const tr = tracedDepths(b.x, b.z, ax, az, w, d2);
+      this.cells.push({ traced: tr?.lines, tracedInter: tr?.inter, i, s, bx: b.x, bz: b.z, ax, az, w: tr ? tr.lines[0] : w, d2, corps: corpsOf.get(nearest.div) ?? 'X Corps', div: inDiv ? inDiv.div : null, reg, secs: [], lastRevert: -99, push: 0 });
     }
   }
   /** world position of a point at `depth` along the attack axis at arc length s */
@@ -177,7 +177,8 @@ export class Battle {
         { d: c.w, kind: 'front', gar: 22, mg: 0.3 }, { d: sup, kind: 'support', gar: 14, mg: 0.1 }, { d: res, kind: 'reserve', gar: 12, mg: 0.1 },
       ];
       const end = c.d2 ?? c.w + 1800;
-      for (let d = c.w + 800; d < end - 250; d += 500) lines.push({ d, kind: 'intermediate', gar: 6, mg: 0.05 });
+      if (c.tracedInter) { for (const d of c.tracedInter) if (d > res + 200 && d < end - 150) lines.push({ d, kind: 'intermediate', gar: 6, mg: 0.05 }); }
+      else for (let d = c.w + 800; d < end - 250; d += 500) lines.push({ d, kind: 'intermediate', gar: 6, mg: 0.05 });
       lines.push({ d: end, kind: 'second', gar: 14, mg: 0.15 }, { d: end + 150, kind: 'second support', gar: 8, mg: 0.05 });
       lines.forEach((L, k) => {
         let lift: number;
@@ -649,30 +650,37 @@ export class Battle {
 }
 export const short = (d: string) => d.replace(/ \(.*?\)/, '').replace(' Division', ' Div');
 
-// ---------------- traced trenches (Thiepval sheet) ----------------
+// ---------------- traced trenches (NLS trench maps, tools/trenches.py) ----------------
 type XZ = [number, number];
-const TF = thiepval.front as XZ[], TT = thiepval.trenches as XZ[][], TC = thiepval.corners as XZ[];
+const TL = (trenches.lines as unknown as { p: XZ[] }[]).map(l => l.p);
+const TC = Object.values(trenches.sheets as unknown as Record<string, { corners: XZ[] }>).map(s => s.corners);
 function inside(x: number, z: number, poly: XZ[]) {
   let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c;
 }
-/** distances along a ray to every crossing of a polyline */
-function crossings(bx: number, bz: number, ax: number, az: number, P: XZ[], out: number[]) {
-  for (let k = 1; k < P.length; k++) {
-    const [x1, z1] = P[k - 1], [x2, z2] = P[k], ex = x2 - x1, ez = z2 - z1, den = ax * ez - az * ex; if (Math.abs(den) < 1e-9) continue;
+/** depths along a ray where it crosses a trench running across it (not along it) */
+function crossings(bx: number, bz: number, ax: number, az: number, maxT: number) {
+  const out: number[] = [];
+  for (const P of TL) for (let k = 1; k < P.length; k++) {
+    const [x1, z1] = P[k - 1], [x2, z2] = P[k], ex = x2 - x1, ez = z2 - z1, len = Math.hypot(ex, ez), den = ax * ez - az * ex;
+    if (len < 1e-6 || Math.abs(den) / len < 0.5) continue;           // runs within 30 degrees of the line of attack
     const t = ((x1 - bx) * ez - (z1 - bz) * ex) / den, u = ((x1 - bx) * az - (z1 - bz) * ax) / den;
-    if (u >= 0 && u <= 1 && t > 0) out.push(t);
+    if (u >= 0 && u <= 1 && t > 0 && t < maxT) out.push(t);
   }
+  out.sort((a, b) => a - b);
+  // merge crossings of the same trench's zigzag
+  const m: number[] = []; for (const t of out) if (!m.length || t - m[m.length - 1] > 25) m.push(t);
+  return m;
 }
-/** [front, support?, reserve?] depths for a stretch whose German front lies on the sheet, else null */
-function tracedDepths(bx: number, bz: number, ax: number, az: number, w: number): number[] | null {
-  if (!inside(bx + ax * w, bz + az * w, TC)) return null;
-  const f: number[] = []; crossings(bx, bz, ax, az, TF, f);
-  const front = f.filter(d => Math.abs(d - w) < 180 && d > 150).sort((a, b) => Math.abs(a - w) - Math.abs(b - w))[0];
+/** a stretch's German trench lines from the trench maps, or null where no sheet covers it */
+function tracedDepths(bx: number, bz: number, ax: number, az: number, w: number, d2: number | null) {
+  if (!TC.some(c => inside(bx + ax * w, bz + az * w, c))) return null;
+  const X = crossings(bx, bz, ax, az, (d2 ?? w + 2000) + 200);
+  const front = X.find(t => t >= Math.max(30, w * 0.35) && t <= w + 300);
   if (front === undefined) return null;
-  const all: number[] = []; for (const P of TT) crossings(bx, bz, ax, az, P, all);
-  all.sort((a, b) => a - b);
-  const out = [front];
-  const sup = all.find(d => d > front + 50 && d < front + 260); if (sup !== undefined) out.push(sup);
-  const res = all.find(d => d > (sup ?? front + 140) + 60 && d < (sup ?? front + 140) + 320); if (sup !== undefined && res !== undefined) out.push(res);
-  return out;
+  const lines = [front];
+  const sup = X.find(t => t > front + 50 && t < front + 300); if (sup !== undefined) lines.push(sup);
+  const res = sup !== undefined ? X.find(t => t > sup + 60 && t < sup + 350) : undefined; if (res !== undefined) lines.push(res);
+  const inter: number[] = []; let last = (res ?? sup ?? front) + 200;
+  for (const t of X) if (t > last && t < (d2 ?? Infinity) - 150 && inter.length < 4) { inter.push(t); last = t + 300; }
+  return { lines, inter };
 }
