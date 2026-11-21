@@ -6,7 +6,7 @@ import { Renderer, Camera, type Burst } from './render';
 import { Battle } from './battle';
 import { BattleView } from './battleview';
 import { paintGround, loadSheet } from './closeground';
-import { Soldiers } from './soldiers';
+import { Scene3D, SECTOR } from './scene3d';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -20,8 +20,23 @@ function boot() {
   const cam = new Camera(dem);
   const battle = new Battle(units, divs); battle.begin();
   const bv = new BattleView(battle, r, units);
-  const men = new Soldiers(battle, bv, r, dem); bv.hide = men.shown;
   let anim = 0;
+  // ---------------- the 3D sector view ----------------
+  let v3: Scene3D | null = null, in3D = false;
+  const open3D = () => {
+    info.classList.add('hidden');
+    $('loading').textContent = 'Building the Schwaben Redoubt sector in 3D…'; $('loading').classList.remove('hidden');
+    setTimeout(() => {
+      try {
+        if (!v3) { v3 = new Scene3D(battle, bv, dem); $('v3d').prepend(v3.canvas); v3.attachInput(); }
+        in3D = true; $('v3d').classList.remove('hidden'); document.body.classList.add('in3d');
+        if (t < 7 * 60 + 10) toast('The Ulster battalions are in Thiepval Wood. Zero hour is 07:30.');
+      } catch (err) { toast('Could not build the 3D view: ' + (err instanceof Error ? err.message : String(err))); }
+      $('loading').classList.add('hidden');
+    }, 30);
+  };
+  const close3D = () => { in3D = false; $('v3d').classList.add('hidden'); document.body.classList.remove('in3d'); };
+  $('v3d-back').onclick = close3D;
   r.showBattalions = false;
   paintGround(r);
   let sheetReady = false; loadSheet(r).then(() => (sheetReady = true)).catch(() => {});
@@ -199,8 +214,10 @@ function boot() {
     show(`<h3>${esc(d.name)}</h3><p>${esc(d.corps)} · ${esc(d.commander)} · ${({ REG: 'Regular', NA: 'New Army', TF: 'Territorial' } as any)[d.type] ?? d.type}</p>
       ${divLive(d.name)}
       ${d.cas ? `<p class="cas">Recorded: <b>${d.cas.casualties.toLocaleString()}</b> casualties, ${d.cas.killed.toLocaleString()} killed</p><p>By nightfall: ${esc(d.cas.nightLine)}</p>` : ''}
-      ${d.note ? `<p class="dim">${esc(d.note)}</p>` : ''}<p class="dim">${bns.length} battalions shown.</p>`);
+      ${d.note ? `<p class="dim">${esc(d.note)}</p>` : ''}<p class="dim">${bns.length} battalions shown.</p>
+      ${name === SECTOR.division ? '<button id="b-3d" class="go3d">Watch the Schwaben Redoubt in 3D</button>' : ''}`);
     openDiv = name; openBn = null;
+    const b3 = document.getElementById('b-3d'); if (b3) b3.onclick = open3D;
   }
   function showCorps(name: string) {
     const c = corpsByName.get(name)!;
@@ -273,7 +290,7 @@ function boot() {
     if ((e.target as HTMLElement).tagName === 'INPUT' && (e.target as HTMLInputElement).type !== 'range') return;
     keys.add(e.key.toLowerCase());
     if (e.key === ' ') { e.preventDefault(); $('play').click(); }
-    if (e.key === 'Escape') info.classList.add('hidden');
+    if (e.key === 'Escape') { if (in3D) close3D(); else info.classList.add('hidden'); }
   });
   window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
   window.addEventListener('blur', () => keys.clear());
@@ -309,7 +326,7 @@ function boot() {
   let last = performance.now(), liveT = 0;
   const frame = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    const k = keys, pan = 420 * dt;
+    const k = in3D ? new Set<string>() : keys, pan = 420 * dt;
     if (k.has('w') || k.has('arrowup')) panBy(0, pan); if (k.has('s') || k.has('arrowdown')) panBy(0, -pan);
     if (k.has('a') || k.has('arrowleft')) panBy(pan, 0); if (k.has('d') || k.has('arrowright')) panBy(-pan, 0);
     if (k.has('q')) cam.gyaw += dt; if (k.has('e')) cam.gyaw -= dt;
@@ -324,9 +341,8 @@ function boot() {
     const decals: number[] = [];
     for (const m of mines) if (t >= m.t) { const R = m.crater_m * 0.8 + 6; r.quad(decals, m.p.x, m.p.z, R, 0, 0, R, [0.33, 0.29, 0.24, 0.95], 1, 2); r.quad(decals, m.p.x, m.p.z, R * 2.4, 0, 0, R * 2.4, [0.86, 0.84, 0.78, 0.55], 1, 1.5); }
     if (playing) anim += dt;
-    men.update(t, cam, anim, playing);
-    bv.draw(t, cam); moveBnLabels();
-    r.render(cam, light(t), decals, dt);
+    if (in3D && v3) { v3.keys(keys, dt); v3.render(t, dt, anim, playing); }
+    else { bv.draw(t, cam); moveBnLabels(); r.render(cam, light(t), decals, dt); }
     $('clock').textContent = `${hhmm(t)}`;
     const tot = bv.totals(t);
     $('score').innerHTML = t < 7 * 60 + 20 ? '' : `Casualties · British <b>${Math.round(tot.b).toLocaleString()}</b> · German <b>${Math.round(tot.g).toLocaleString()}</b>`;
@@ -334,14 +350,14 @@ function boot() {
     $('phase').textContent = !simDone && t >= bv.available - 0.5 && t < T1 ? `Simulating… ${hhmm(bv.available)}` : t < 6 * 60 + 25 ? 'Final morning of the bombardment' : t < 7 * 60 + 20 ? 'Intense bombardment' : t < ZERO ? 'Mines · troops moving into no man\'s land' : t < ZERO + 3 ? 'Zero hour' : t < 21 * 60 ? 'The attack' : 'Nightfall';
     if (document.activeElement !== slider) slider.value = String(t);
     updateEvents();
-    placeLabels();
+    if (!in3D) placeLabels();
     if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').classList.remove('on'); }
     requestAnimationFrame(frame);
   };
   $('loading').classList.add('hidden');
   $('intro').classList.remove('hidden');
   requestAnimationFrame(frame);
-  (window as any).__app = { cam, r, units, divs, corps, battle, bv, men, get simDone() { return simDone; }, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
+  (window as any).__app = { cam, r, units, divs, corps, battle, bv, open3D, close3D, get v3() { return v3; }, get simDone() { return simDone; }, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
 }
 
 window.addEventListener('error', e => { const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Error: ' + e.message; });

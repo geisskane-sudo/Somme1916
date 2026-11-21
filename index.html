@@ -56,6 +56,11 @@
   #begin { margin-top: 8px; padding: 8px 18px; font-size: 15px; background: var(--accent); color: #1d160a; }
   #loading, #error { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; padding: 20px; }
   #error { background: #222; color: #f99; }
+  #v3d { position: fixed; inset: 0; z-index: 5; } #gl3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #v3d-ui { position: absolute; top: 8px; left: 8px; padding: 8px 11px; display: flex; gap: 10px; align-items: center; max-width: calc(100% - 16px); font-size: 12.5px; }
+  #bar, #events, #toast, #info, #loading, #error, .modal { z-index: 10; }
+  body.in3d #top, body.in3d #labels { display: none; }
+  .go3d { margin-top: 6px; background: var(--accent); color: #1d160a; border-color: var(--accent); }
   kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11.5px; }
   @media (max-width: 700px) { #events { top: auto; bottom: 150px; width: calc(100% - 16px); max-height: 16vh; } #phase { display: none; } #info { bottom: 150px; max-height: 45vh; overflow: auto; } #top .sub { display: none; } #legend { font-size: 10.5px; gap: 6px; } #bar { gap: 6px; padding: 6px 8px; } #clock { font-size: 18px; } }
 </style>
@@ -84,6 +89,7 @@
   <div id="phase"></div>
 </div>
 
+<div id="v3d" class="hidden"><div id="v3d-ui" class="panel"><button id="v3d-back">← Back to the map</button><div><b>36th (Ulster) Division · Schwaben Redoubt</b><div class="dim">Drag to move · wheel or pinch to zoom · right-drag or twist to turn. The men act out the recorded battle.</div></div></div></div>
 <div id="intro" class="modal hidden"><div class="panel">
   <h2>1 July 1916 — the first day on the Somme</h2>
   <p>At 07:30 on Saturday 1 July 1916, after a week-long bombardment, fourteen British divisions attacked along a front from Gommecourt in the north to Maricourt in the south, next to the French. This map shows the ground as it is, with the trench lines, villages, mines and battalions of that morning.</p>
