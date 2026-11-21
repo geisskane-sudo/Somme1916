@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1 July 1916 – The British attack on the Somme</title>
+<style>
+  :root { --ink: #efe9da; --dim: #bdb5a1; --panel: rgba(24, 22, 19, 0.84); --line: rgba(239, 233, 218, 0.16); --accent: #d9a441; --brit: #c8352a; --ger: #2f7a3e; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #222; color: var(--ink); font: 13px/1.4 Georgia, 'Times New Roman', serif; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .hidden { display: none !important; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+  button, select { font: inherit; color: var(--ink); background: rgba(255,255,255,0.07); border: 1px solid var(--line); border-radius: 5px; padding: 4px 9px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,0.15); }
+  button.on { background: var(--accent); color: #1d160a; border-color: var(--accent); }
+  select option { background: #2a2620; }
+  #top { position: fixed; top: 8px; left: 8px; padding: 8px 11px; max-width: min(430px, calc(100% - 16px)); }
+  #top h1 { margin: 0; font-size: 16px; } #top .sub { color: var(--dim); font-size: 12px; margin: 1px 0 7px; }
+  #top .row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  #legend { margin-top: 7px; font-size: 11.5px; color: var(--dim); display: flex; gap: 10px; flex-wrap: wrap; }
+  #legend i { display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+  #legend .b { background: var(--brit); } #legend .g { background: var(--ger); } #legend .g2 { background: repeating-linear-gradient(90deg, var(--ger) 0 5px, transparent 5px 9px); }
+  #legend .blk { width: 12px; height: 8px; background: var(--brit); border: 1px solid #4d1410; }
+  #events { position: fixed; top: 8px; right: 8px; width: min(360px, 40vw); padding: 6px 9px; max-height: 45vh; overflow: auto; font-size: 12px; }
+  .ev { margin: 4px 0; } .ev span { color: var(--accent); margin-right: 5px; } .ev.click { cursor: pointer; } .ev.click:hover { color: #fff; } .dim { color: var(--dim); }
+  #bar { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); width: min(760px, calc(100% - 16px)); padding: 8px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #clock { font-size: 22px; font-weight: bold; min-width: 64px; } #date { color: var(--dim); font-size: 11.5px; line-height: 1.1; }
+  #phase { color: var(--accent); font-size: 12px; min-width: 170px; }
+  #slider { flex: 1 1 200px; accent-color: var(--accent); }
+  #play { font-size: 15px; width: 42px; }
+  #speeds { display: flex; gap: 3px; } #speeds button { padding: 3px 7px; font-size: 12px; }
+  #info { position: fixed; left: 8px; bottom: 84px; width: min(340px, calc(100% - 16px)); padding: 9px 12px; }
+  #info h3 { margin: 0 24px 2px 0; font-size: 15px; } #info p { margin: 5px 0; } #info .nick { color: var(--accent); font-style: italic; }
+  #info .cas b { color: #ff9a85; font-size: 15px; } #info .x { position: absolute; top: 5px; right: 6px; padding: 0 7px; } #info a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+  #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .lab { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; text-shadow: 0 0 3px #000, 0 0 2px #000; pointer-events: none; }
+  .lab.click { pointer-events: auto; cursor: pointer; }
+  .lab.corps { font-size: 15px; font-weight: bold; color: #ffd9c9; letter-spacing: 0.5px; }
+  .lab.div { font-size: 12.5px; color: #ffc0b0; font-weight: bold; }
+  .lab.place { color: #f5f1e6; font-size: 12px; } .lab.place.german { font-style: italic; color: #d8f0d8; }
+  .lab.feat { color: #e8e2c8; font-size: 11px; font-style: italic; }
+  .lab.ger { color: #b9f0c0; font-size: 11px; }
+  .lab.mine { color: #ffd27a; font-size: 11.5px; }
+  .lab.bn { font-size: 10.5px; color: #ffe2da; } .lab.bn.w3 { color: #e6c2b8; }
+  #toast { position: fixed; top: 64px; left: 50%; transform: translate(-50%, -10px); padding: 7px 14px; background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; opacity: 0; transition: opacity 0.4s, transform 0.4s; pointer-events: none; max-width: 80vw; text-align: center; }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  .modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); padding: 10px; }
+  .modal .panel { max-width: 620px; padding: 16px 20px; max-height: 92%; overflow: auto; }
+  .modal h2 { margin: 0 0 6px; } .modal p, .modal li { color: #ddd5c2; }
+  #begin { margin-top: 8px; padding: 8px 18px; font-size: 15px; background: var(--accent); color: #1d160a; }
+  #loading, #error { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; padding: 20px; }
+  #error { background: #222; color: #f99; }
+  kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11.5px; }
+  @media (max-width: 700px) { #events { top: auto; bottom: 150px; width: calc(100% - 16px); max-height: 16vh; } #phase { display: none; } #info { bottom: 150px; max-height: 45vh; overflow: auto; } #top .sub { display: none; } #legend { font-size: 10.5px; gap: 6px; } #bar { gap: 6px; padding: 6px 8px; } #clock { font-size: 18px; } }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="labels"></div>
+<div id="loading">Laying out the front…</div>
+<div id="error" class="hidden"></div>
+
+<div id="top" class="panel">
+  <h1>1 July 1916</h1>
+  <div class="sub">The British attack on the Somme, Gommecourt to Maricourt · early prototype</div>
+  <div class="row"><button id="b-whole">Whole front</button><select id="goto"></select><button id="b-help">?</button></div>
+  <div id="legend"><span><i class="b"></i>British front line</span><span><i class="g"></i>German front line</span><span><i class="g2"></i>German second line</span><span><i class="blk"></i>Battalion</span></div>
+</div>
+<div id="events" class="panel"></div>
+<div id="toast"></div>
+<div id="info" class="panel hidden"></div>
+<div id="bar" class="panel">
+  <button id="play">▶</button>
+  <div><div id="clock">06:00</div><div id="date">Saturday 1 July 1916</div></div>
+  <input id="slider" type="range">
+  <div id="speeds"></div>
+  <div id="phase"></div>
+</div>
+
+<div id="intro" class="modal hidden"><div class="panel">
+  <h2>1 July 1916 — the first day on the Somme</h2>
+  <p>At 07:30 on Saturday 1 July 1916, after a week-long bombardment, fourteen British divisions attacked along a front from Gommecourt in the north to Maricourt in the south, next to the French. This map shows the ground as it is, with the trench lines, villages, mines and battalions of that morning.</p>
+  <ul>
+    <li><b>Zoom out</b> to see the whole front and the corps; <b>zoom in</b> to see divisions, then battalions in their trenches.</li>
+    <li>The clock starts at 06:00. Watch the final bombardment, the mines at 07:20 and 07:28, and zero hour at 07:30. Pause, change speed or drag the timeline.</li>
+    <li>Click a battalion, division, corps or mine for details. Events appear top right; click one to fly there.</li>
+  </ul>
+  <p class="dim" style="font-size:12px">This first version shows the start positions and the timetable. The battle itself (attacks going in, succeeding or failing, and the front lines moving) is the next stage. Trench lines are traced from 1916 trench maps and are approximate; battalion positions are placed along each division's frontage; the Montauban–Maricourt sector is drawn without a trench map.</p>
+  <button id="begin">Begin at 06:00</button>
+</div></div>
+
+<div id="help" class="modal hidden"><div class="panel">
+  <h2>Controls</h2>
+  <p><b>Mouse:</b> drag to move · wheel to zoom · right-drag (or Shift-drag) to rotate and tilt · click for details.<br>
+  <b>Touch:</b> drag to move · pinch to zoom · twist to rotate · two fingers up/down to tilt · tap for details.<br>
+  <b>Keys:</b> <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> rotate · <kbd>R</kbd>/<kbd>F</kbd> tilt · <kbd>+</kbd>/<kbd>−</kbd> zoom · <kbd>Space</kbd> pause.</p>
+  <h2>Sources</h2>
+  <p class="dim">Order of battle and casualties: M. Middlebrook, <i>The First Day on the Somme</i>; <i>The Western Front Companion</i>. Trench maps: National Library of Scotland (CC-BY). Elevation: Copernicus GLO-30 DEM (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA). Reference points: CWGC, Wikipedia.</p>
+  <button>Close</button>
+</div></div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -27,3 +27,9 @@ Only facts and figures are recorded here; no text is reproduced.
 ## Terrain and maps
 - `data/dem/cop30_somme.tif`: Copernicus GLO-30 (2023_1), 1 arc-second, 2.58-2.86 E, 49.96-50.16 N, 27-185 m. Spot-checked against 1916 contours (Thiepval 140 m, Albert 72 m).
 - `refs/nls/`: trench map screenshots (see its README). Montauban-Maricourt still missing.
+
+## Viewer (first version)
+`node scripts/build.mjs` → `dist/` (committed); `node scripts/serve.mjs 8080`. After editing `data/geography_src.json`, run `python3 tools/prep.py` (snaps the Ancre to the valley floor, writes `web/geography.json` and `src/demdata.ts`).
+- Whole front on the real ground; zoom from corps to battalions; clock 06:00–22:30 with pause, speeds and a timeline.
+- Final bombardment, lift and German counter-barrage as effects; mines at their times with craters; events feed.
+- Not yet: the battle itself (units moving, attacks succeeding or failing, lines changing).
