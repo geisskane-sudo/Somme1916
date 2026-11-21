@@ -6,6 +6,8 @@ import { GEO, pts, project, at, resample, type P } from './geo';
 export interface Battalion {
   id: number; name: string; nick?: string; brigade: string; division: string; corps: string; army: string; type: string;
   involved: boolean; wave: 1 | 2 | 3;
+  /** arc length along the British front (m) and distance behind it (m) */
+  s: number; back: number;
   x: number; z: number; tx: number; tz: number; nx: number; nz: number; w: number; d: number;
   cas?: { officers: number; men: number; total: number };
 }
@@ -52,7 +54,7 @@ export function buildUnits() {
     if ((g.x - p.x) * nx + (g.z - p.z) * nz > 0) { nx = -nx; nz = -nz; }
     units.push({
       id: units.length, name: bn.name, nick: bn.nick, brigade: bde.name, division: bde.division, corps: bde.corps, army: bde.army, type: bde.type,
-      involved: bn.involved, wave, x: p.x + nx * back, z: p.z + nz * back, tx, tz, nx, nz, w, d: 70,
+      involved: bn.involved, wave, s, back, x: p.x + nx * back, z: p.z + nz * back, tx, tz, nx, nz, w, d: 70,
       cas: casMap.get(norm(bn.name)),
     });
   };
