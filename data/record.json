@@ -1,0 +1,77 @@
+{
+  "_note": "Ground held by each division through 1 July, used to steer the simulation so it matches the record. At each keyframe the division holds the listed segments (and nothing else); the simulation decides how and when it gets there between keyframes. Segments: 'from'/'to' are fractions of the division's frontage from north (0) to south (1), or 'near' a strongpoint with a width 'm' in metres. Depth: 'line' (front, support, reserve, int = intermediate lines, second, objective) or 'into' = metres into the German position. 'src': documented (stated in Middlebrook / Western Front Companion) or interpretation (timing or extent judged from the narrative). Casualty totals come from results.json.",
+  "divisions": {
+    "46th (North Midland) Division": [
+      { "t": "07:45", "held": [{ "from": 0.3, "to": 0.55, "line": "front" }], "src": "interpretation", "why": "Parts of the leading waves got into the German front trench and were cut off" },
+      { "t": "08:45", "held": [], "src": "documented", "why": "Nothing held; survivors back at the start line" }
+    ],
+    "56th (London) Division": [
+      { "t": "07:45", "held": [{ "from": 0, "to": 1, "line": "support" }], "src": "interpretation" },
+      { "t": "08:30", "held": [{ "from": 0.1, "to": 0.9, "line": "reserve" }], "src": "documented", "why": "Took the first three German lines" },
+      { "t": "14:00", "held": [{ "from": 0.15, "to": 0.85, "line": "support" }], "src": "interpretation", "why": "Counter-attacks from three sides; bombs running out" },
+      { "t": "17:00", "held": [{ "from": 0.3, "to": 0.75, "line": "front" }], "src": "interpretation" },
+      { "t": "21:30", "held": [], "src": "documented", "why": "Back at the start line by nightfall" }
+    ],
+    "31st Division": [
+      { "t": "07:50", "held": [{ "from": 0.6, "to": 0.72, "line": "front" }], "src": "interpretation", "why": "A few men reported in Serre" },
+      { "t": "09:00", "held": [], "src": "documented", "why": "Nothing held" }
+    ],
+    "4th Division": [
+      { "t": "07:45", "held": [{ "near": "Quadrilateral", "m": 600, "line": "support" }], "src": "interpretation" },
+      { "t": "09:00", "held": [{ "near": "Quadrilateral", "m": 500, "line": "reserve" }], "src": "interpretation", "why": "Parties pushed beyond the Quadrilateral (Heidenkopf)" },
+      { "t": "13:00", "held": [{ "near": "Quadrilateral", "m": 300, "line": "support" }], "src": "interpretation" },
+      { "t": "22:30", "held": [{ "near": "Quadrilateral", "m": 200, "line": "front" }], "src": "documented", "why": "Small part of the Quadrilateral held overnight" }
+    ],
+    "29th Division": [
+      { "t": "07:35", "held": [{ "near": "Hawthorn Redoubt", "m": 150, "line": "front" }], "src": "interpretation", "why": "Men reached the Hawthorn crater but could not hold it" },
+      { "t": "09:30", "held": [], "src": "documented", "why": "Attack failed by 09:30" }
+    ],
+    "36th (Ulster) Division": [
+      { "t": "07:45", "held": [{ "from": 0.3, "to": 1, "line": "support" }], "src": "documented", "why": "South of the Ancre the German front lines were taken quickly; north of the river the attack failed" },
+      { "t": "08:30", "held": [{ "from": 0.3, "to": 1, "line": "reserve" }, { "near": "Schwaben Redoubt", "m": 600, "line": "int" }], "src": "documented", "why": "Schwaben Redoubt taken by 08:30" },
+      { "t": "10:10", "held": [{ "from": 0.3, "to": 1, "line": "reserve" }, { "from": 0.45, "to": 0.9, "line": "int" }, { "from": 0.55, "to": 0.75, "into": 1400 }], "src": "documented", "why": "107th Brigade within 100 yards of the Grandcourt line and Stuff Redoubt, caught by its own barrage" },
+      { "t": "16:00", "held": [{ "from": 0.35, "to": 0.95, "line": "reserve" }, { "near": "Schwaben Redoubt", "m": 500, "line": "int" }], "src": "interpretation" },
+      { "t": "22:00", "held": [{ "from": 0.4, "to": 0.9, "line": "support" }], "src": "documented", "why": "Heavier German counter-attacks force the division back from the Schwaben Redoubt" },
+      { "t": "22:30", "held": [{ "from": 0.5, "to": 0.85, "line": "front" }], "src": "documented", "why": "About 750 yards of the German front line still held" }
+    ],
+    "32nd Division": [
+      { "t": "07:45", "held": [{ "near": "Leipzig Salient", "m": 400, "line": "front" }, { "near": "Thiepval", "m": 150, "line": "front" }], "src": "interpretation", "why": "17th HLI rushed the Leipzig Salient; a few men of the 96th Brigade got into Thiepval and were cut off" },
+      { "t": "09:00", "held": [{ "near": "Leipzig Salient", "m": 350, "line": "front" }], "src": "documented" },
+      { "t": "22:30", "held": [{ "near": "Leipzig Salient", "m": 300, "line": "front" }], "src": "documented", "why": "Toehold in the Leipzig Redoubt only" }
+    ],
+    "8th Division": [
+      { "t": "07:45", "held": [{ "from": 0.25, "to": 0.6, "line": "front" }], "src": "interpretation", "why": "Small parties got into the German trenches and were bombed out" },
+      { "t": "10:00", "held": [], "src": "documented", "why": "Back in its own front line" }
+    ],
+    "34th Division": [
+      { "t": "07:45", "held": [{ "near": "Schwaben Höhe", "m": 400, "line": "support" }, { "near": "Scots Redoubt", "m": 500, "line": "reserve" }], "src": "interpretation", "why": "Parties got through beside the Lochnagar crater and south of La Boisselle" },
+      { "t": "09:30", "held": [{ "near": "Schwaben Höhe", "m": 350, "line": "support" }, { "near": "Scots Redoubt", "m": 500, "line": "int" }], "src": "interpretation", "why": "Some of the Tyneside Irish reached towards Contalmaison" },
+      { "t": "22:30", "held": [{ "near": "Schwaben Höhe", "m": 300, "line": "support" }, { "near": "Scots Redoubt", "m": 400, "line": "reserve" }], "src": "documented", "why": "Held Schwaben Höhe and Scots Redoubt; Sausage Redoubt still German" }
+    ],
+    "21st Division": [
+      { "t": "07:45", "held": [{ "from": 0.1, "to": 1, "line": "support" }], "src": "interpretation" },
+      { "t": "09:00", "held": [{ "from": 0.1, "to": 1, "line": "reserve" }], "src": "interpretation" },
+      { "t": "12:00", "held": [{ "from": 0.15, "to": 0.95, "into": 1100 }], "src": "interpretation" },
+      { "t": "22:30", "held": [{ "from": 0.15, "to": 0.95, "into": 1100 }], "src": "documented", "why": "Line of Lonely Trench and part of Crucifix Trench, 1,000-2,000 yards short of the final objective" }
+    ],
+    "17th (Northern) Division": [
+      { "t": "22:30", "held": [], "src": "documented", "why": "Fricourt not taken; 7th Green Howards' company at 07:45 and 7th East Yorks at 14:33 both stopped" }
+    ],
+    "7th Division": [
+      { "t": "08:00", "held": [{ "from": 0.35, "to": 1, "line": "support" }], "src": "documented", "why": "1st South Staffords in Cemetery Trench on the outskirts of Mametz" },
+      { "t": "12:00", "held": [{ "from": 0.35, "to": 1, "into": 600 }], "src": "interpretation" },
+      { "t": "15:00", "held": [{ "from": 0.35, "to": 1, "into": 900 }, { "from": 0, "to": 0.35, "line": "front" }], "src": "documented", "why": "Final effort; Mametz secured; 22nd Brigade attacks in the afternoon" },
+      { "t": "19:00", "held": [{ "from": 0.3, "to": 1, "into": 1150 }, { "from": 0, "to": 0.3, "line": "support" }], "src": "documented", "why": "Bunny Alley-Fritz Trench, about 750 yards short of the objective" }
+    ],
+    "18th (Eastern) Division": [
+      { "t": "07:45", "held": [{ "from": 0, "to": 1, "line": "support" }], "src": "interpretation" },
+      { "t": "09:30", "held": [{ "from": 0, "to": 1, "into": 700 }], "src": "interpretation", "why": "Pommiers Redoubt taken" },
+      { "t": "15:30", "held": [{ "from": 0, "to": 1, "line": "objective" }], "src": "documented", "why": "White Trench / Montauban Alley" }
+    ],
+    "30th Division": [
+      { "t": "07:45", "held": [{ "from": 0, "to": 1, "line": "support" }], "src": "interpretation" },
+      { "t": "08:30", "held": [{ "from": 0, "to": 1, "into": 700 }], "src": "documented", "why": "90th Brigade begins the advance on Montauban" },
+      { "t": "12:00", "held": [{ "from": 0, "to": 1, "line": "objective" }], "src": "documented", "why": "Objectives including Montauban and the Brickworks taken, about midday" }
+    ]
+  }
+}

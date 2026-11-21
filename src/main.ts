@@ -178,14 +178,14 @@ function boot() {
     const bi = units.indexOf(u), cs = bv.companies(bi, t);
     if (!cs.length) return '';
     const men = cs.reduce((a, c) => a + c.men, 0), men0 = cs.reduce((a, c) => a + c.men0, 0);
-    return `<div id="live"><p><b>Simulation at ${hhmm(t)}</b> · ${Math.round(men)} of ${Math.round(men0)} men · ${Math.round(men0 - men)} casualties</p>
+    return `<div id="live"><p><b>At ${hhmm(t)}</b> · ${Math.round(men)} of ${Math.round(men0)} men · ${Math.round(men0 - men)} casualties</p>
       <table class="coys">${cs.map(c => `<tr><td>${c.name} Coy</td><td>${Math.round(c.men)}</td><td>${c.stateName}</td></tr>`).join('')}</table></div>`;
   }
   function divLive(name: string) {
     const v = bv.divCas(name, t); if (v === null) return '';
     const cells = battle.cells.filter(c => c.div === name);
     let held = 0, deep = 0; for (const c of cells) { let d = -1; for (const id of c.secs) if (bv.owner(id, t)) d = battle.secs[id].depth - c.w; if (d >= 0) { held++; deep = Math.max(deep, d); } }
-    return `<div id="live"><p><b>Simulation at ${hhmm(t)}</b>: ${Math.round(v).toLocaleString()} casualties · ${cells.length ? Math.round(held / cells.length * 100) : 0}% of the frontage in German trenches${held ? `, up to ${Math.round(deep / 10) * 10} m deep` : ''}</p></div>`;
+    return `<div id="live"><p><b>At ${hhmm(t)}</b>: ${Math.round(v).toLocaleString()} casualties · ${cells.length ? Math.round(held / cells.length * 100) : 0}% of the frontage in German trenches${held ? `, up to ${Math.round(deep / 10) * 10} m deep` : ''}</p></div>`;
   }
   const refreshLive = () => { const el = document.getElementById('live'); if (!el || info.classList.contains('hidden')) return; const html = openBn ? bnLive(openBn) : openDiv ? divLive(openDiv) : ''; if (html) el.outerHTML = html; };
   function showDiv(name: string) {
@@ -317,7 +317,7 @@ function boot() {
     r.render(cam, light(t), decals, dt);
     $('clock').textContent = `${hhmm(t)}`;
     const tot = bv.totals(t);
-    $('score').innerHTML = t < 7 * 60 + 20 ? '' : `Simulated losses · British <b>${Math.round(tot.b).toLocaleString()}</b> · German <b>${Math.round(tot.g).toLocaleString()}</b>`;
+    $('score').innerHTML = t < 7 * 60 + 20 ? '' : `Casualties · British <b>${Math.round(tot.b).toLocaleString()}</b> · German <b>${Math.round(tot.g).toLocaleString()}</b>`;
     if ((liveT -= dt) < 0) { liveT = 1; refreshLive(); }
     $('phase').textContent = !simDone && t >= bv.available - 0.5 && t < T1 ? `Simulating… ${hhmm(bv.available)}` : t < 6 * 60 + 25 ? 'Final morning of the bombardment' : t < 7 * 60 + 20 ? 'Intense bombardment' : t < ZERO ? 'Mines · troops moving into no man\'s land' : t < ZERO + 3 ? 'Zero hour' : t < 21 * 60 ? 'The attack' : 'Nightfall';
     if (document.activeElement !== slider) slider.value = String(t);

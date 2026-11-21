@@ -22,7 +22,7 @@ console.log(`cells ${b.cells.length}  sections ${b.secs.length}  strips ${b.stri
 console.log('division'.padEnd(18), 'sim'.padStart(6), 'hist'.padStart(6), ' ratio', ' held at night (m into German lines / frontage %)   historical');
 let sumS = 0, sumH = 0, err = 0, n = 0;
 for (const d of b.divNames) {
-  const sim = Math.round(b.divCas[d]); const h = find(d);
+  const sim = Math.round(rec.divCas[(rec.minutes - 1) * b.divNames.length + b.divNames.indexOf(d)]); const h = find(d);
   const cells = b.cells.filter(c => c.div === d);
   if (!cells.length) continue;
   const held = cells.map(c => b.heldDepth(c.i, id => b.secs[id].owner));

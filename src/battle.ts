@@ -13,6 +13,8 @@
 // The whole day is computed once and recorded every minute, so playback can run at any speed and
 // be scrubbed back and forth.
 import plan from '../data/plan.json';
+import record from '../data/record.json';
+import steer from '../data/steer.json';
 import { GEO, pts, resample, project, at, toXZ, type P } from './geo';
 import type { Battalion, DivInfo } from './units';
 
@@ -33,6 +35,8 @@ export interface Strip {
   rate: number;
   /** crawling forward from shell holes towards a captured trench */
   crawling: boolean;
+  /** factor applied to this strip's losses when recorded, so totals match the record (data/steer.json) */
+  k: number;
 }
 export interface BattleEvent { t: number; text: string; x: number; z: number; div?: string }
 export interface Recording {
@@ -80,6 +84,10 @@ export class Battle {
   private regNames: string[];
   private mines: { t: number; x: number; z: number; r: number; done: boolean; name: string }[] = [];
   private milestones = new Set<string>();
+  /** per cell: ground the record says is held, as keyframes {t, d} (d = deepest section depth held, -1 none); null = not steered */
+  sched: ({ t: number; d: number }[] | null)[] = [];
+  /** killed as a share of casualties, per division, from the record */
+  private killedShare: Record<string, number> = {};
   private prevMen = new Map<number, number>();
   trace?: (t: number) => void;
   stripWhy?: Record<number, Record<string, number>>;
@@ -96,6 +104,8 @@ export class Battle {
     this.buildCells(divs);
     this.buildSections();
     this.buildStrips(units);
+    this.buildSchedule();
+    for (const d of divs) this.killedShare[d.name] = d.cas && d.cas.casualties ? d.cas.killed / d.cas.casualties : 0.34;
     for (const m of GEO.mines) {
       const p = toXZ(m.ll), r = (plan.mineEffects as Record<string, number>)[m.name] ?? 40;
       this.mines.push({ t: Number(m.time.slice(0, 2)) * 60 + Number(m.time.slice(3, 5)), x: p.x, z: p.z, r, done: false, name: m.name });
@@ -183,6 +193,52 @@ export class Battle {
     }
   }
 
+  // ---------------- the record: ground held through the day ----------------
+  private buildSchedule() {
+    const R = record.divisions as Record<string, { t: string; held: { from?: number; to?: number; near?: string; m?: number; line?: string; into?: number }[] }[]>;
+    const spS = new Map(plan.strongpoints.map(sp => [sp.name, project(this.front, toXZ(sp.ll as [number, number])).s]));
+    this.sched = this.cells.map(c => (c.div ? (R[c.div] ? [] : null) : []));
+    for (const [div, kfs] of Object.entries(R)) {
+      const cs = this.cells.filter(c => c.div === div); if (!cs.length) continue;
+      const obj = this.divPlan.get(div)?.objective ?? 2000;
+      for (const kf of kfs) {
+        const t = Number(kf.t.slice(0, 2)) * 60 + Number(kf.t.slice(3, 5));
+        cs.forEach((c, k) => {
+          const f = cs.length > 1 ? k / (cs.length - 1) : 0.5;
+          let d = -1;
+          for (const h of kf.held) {
+            const inside = h.near ? Math.abs(c.s - (spS.get(h.near) ?? -1e9)) <= (h.m ?? 300) / 2 + CELL / 2 : f >= (h.from ?? 0) - 1e-6 && f <= (h.to ?? 1) + 1e-6;
+            if (!inside) continue;
+            const secs = c.secs.map(id => this.secs[id]);
+            const firstOf = (kind: string) => Math.min(Infinity, ...secs.filter(x => x.kind === kind).map(x => x.depth));
+            const lim = h.into !== undefined ? c.w + h.into + 10 : h.line === 'front' ? c.w + 10 : h.line === 'support' ? c.w + 150 : h.line === 'reserve' ? c.w + 310
+              : h.line === 'int' ? (isFinite(firstOf('intermediate')) ? firstOf('intermediate') : c.w + 310) + 10 : h.line === 'second' ? (c.d2 ?? c.w + 1800) + 160 : obj + 60;
+            d = Math.max(d, ...secs.filter(x => x.depth <= lim).map(x => x.depth));
+          }
+          this.sched[c.i]!.push({ t, d });
+        });
+      }
+    }
+  }
+  /** deepest section the record has held now (-1 none), the time that keyframe began, and the next keyframe */
+  private schedAt(ci: number, t: number) {
+    const S = this.sched[ci]; if (!S) return null;
+    let now = -1, since = -Infinity, next: { t: number; d: number } | null = null;
+    for (const k of S) { if (k.t <= t) { now = k.d; since = k.t; } else { next = k; break; } }
+    return { now, since, next };
+  }
+  /** may this section be captured now? (steered cells: only up to what the record reaches by the next keyframe) */
+  allowed(s: Section, t = this.t) { const L = this.limit(s.cell, t); return L === null || s.depth <= L; }
+  /** deepest depth that may be held in a steered cell now: up to the next keyframe's gains, and shrinking ahead of a recorded loss */
+  limit(ci: number, t: number) {
+    const a = this.schedAt(ci, t); if (!a) return null;
+    let lim = Math.max(a.now, a.next?.d ?? -1);
+    if (a.next && a.next.d < a.now && t >= a.next.t - 20) lim = a.next.d + (a.now - a.next.d) * Math.max(0, (a.next.t - 2 - t) / 18);
+    return lim;
+  }
+  /** is this section held in the record at this moment (so it cannot be lost)? */
+  private locked(s: Section, t = this.t) { const a = this.schedAt(s.cell, t); return !!a && s.depth <= a.now; }
+
   private buildStrips(units: Battalion[]) {
     const n = this.cells.length;
     units.forEach((u, bi) => {
@@ -203,7 +259,7 @@ export class Battle {
           const creepDepth = creeps ? (co!.toGap !== undefined ? c.w - co!.toGap : c.w * (co!.toNml ?? 0.3)) - (k >= 2 ? 40 : 0) : depth;
           this.strips.push({ id: this.strips.length, bn: bi, co: k, div: u.division, s: (a + b) / 2, len, cell: ci, depth, men, men0: men,
             start: start === null ? null : start + (k >= 2 ? 2 : 0), creepAt: creeps ? ZERO + co!.at : null, creepDepth,
-            state: ST.wait, bombs: 1, mop: k >= 2, obj: P.objective, sec: -1, rate: 0, crawling: false });
+            state: ST.wait, bombs: 1, mop: k >= 2, obj: P.objective, sec: -1, rate: 0, crawling: false, k: (steer.bn as Record<string, number>)[u.name] ?? (steer.div as Record<string, number>)[u.division] ?? 1 });
         }
       }
     });
@@ -249,7 +305,7 @@ export class Battle {
   }
   private heldBehind(cell: Cell, depth: number) {
     let best: Section | null = null;
-    for (const id of cell.secs) { const s = this.secs[id]; if (s.depth >= depth - 5) break; if (s.owner) best = s; else best = null; }
+    for (const id of cell.secs) { const s = this.secs[id]; if (s.depth >= depth - 5) break; if (s.owner) best = s; }
     return best;
   }
   private say(text: string, cell: Cell, depth: number, div?: string) { const w = this.world(cell.s, depth); this.events.push({ t: this.t, text, x: w.x, z: w.z, div }); }
@@ -337,8 +393,8 @@ export class Battle {
       const cleared = Gm < 0.15 * Nb ? Math.min(Gd, K.clear * Nb * dt) : 0;
       s.gar -= gl + cleared; this.cas.g += gl + cleared; this.cas.gp += cleared * 0.6;
       for (const c of cs) { this.hurt(c, bl * c.men / Nb); c.bombs = Math.max(0, c.bombs - 0.004 * dt * (1 + Gm / 5)); }
-      const Nb2 = cs.reduce((a, c) => a + c.men, 0);
-      if (Nb2 < 0.8 * s.gar * m) { for (const c of cs) c.state = ST.pinned; continue; }
+      const Nb2 = cs.reduce((a, c) => a + c.men, 0), ok = this.allowed(s);
+      if (!ok || (this.sched[s.cell] === null && Nb2 < 0.8 * s.gar * m)) { for (const c of cs) c.state = this.inGerman(c) ? ST.hold : ST.pinned; continue; }
       if (s.gar * m < Math.max(1.5, 0.06 * Nb)) {
         const left = s.gar * m; this.cas.g += left; this.cas.gp += left * 0.5;
         s.owner = 1; s.capturedAt = t; s.hidden = Math.max(0, s.gar - left); s.gar = 0;
@@ -354,7 +410,7 @@ export class Battle {
     for (const c of strips) {
       if (!this.alive(c)) continue;
       const cell = cells[c.cell], P = this.divPlan.get(c.div)!;
-      if (c.men < 0.12 * c.men0 && !(c.men > 2 && this.inGerman(c) && this.heldAt(c))) { c.state = this.inGerman(c) || c.depth > 0 ? ST.spent : ST.home; continue; }
+      if (c.men < 0.12 * c.men0 && !(c.men > 2 && ((this.inGerman(c) && (this.heldAt(c) || this.heldBehind(cell, c.depth))) || (this.sched[c.cell] !== null && this.limit(c.cell, t)! >= 0 && c.depth > -50)))) { c.state = this.inGerman(c) || c.depth > 0 ? ST.spent : ST.home; continue; }
       switch (c.state) {
         case ST.wait: {
           if (c.creepAt !== null && t >= c.creepAt && c.depth < c.creepDepth) c.depth = Math.min(c.creepDepth, c.depth + K.speed * 0.7 * dt);
@@ -363,7 +419,8 @@ export class Battle {
         }
         case ST.advance: case ST.halted: {
           const tg0 = this.target(c), close = tg0 && t >= tg0.lift && tg0.depth - c.depth < 35;
-          if (c.depth > 0 && !this.heldAt(c) && !close && (c.rate > 2 * K.supp || (c.rate > K.supp && c.men < 0.75 * c.men0))) {
+          const pressOn = this.sched[c.cell] !== null && (tg0 ? this.allowed(tg0) : !!this.heldAt(c) || this.limit(c.cell, t)! >= 0);
+          if (c.depth > 0 && !this.heldAt(c) && !close && !pressOn && (c.rate > 2 * K.supp || (c.rate > K.supp && c.men < 0.75 * c.men0))) {
             if (this.inGerman(c)) { const b = this.heldBehind(cell, c.depth); if (b) { c.depth = Math.max(b.depth, c.depth - K.retireSpeed * dt); if (c.depth - b.depth < 2) { c.state = ST.hold; c.sec = b.id; } else c.state = ST.advance; break; } }
             c.state = c.depth < 40 ? ST.retire : ST.pinned; break;
           }
@@ -427,6 +484,28 @@ export class Battle {
       }
     }
 
+    // the record: trenches it says were taken by now are taken; ground it says was lost goes, deepest first
+    for (const cell of cells) {
+      const a = this.schedAt(cell.i, t); if (!a) continue;
+      const lim = this.limit(cell.i, t)!;
+      for (const id of cell.secs) {
+        const s = secs[id];
+        if (!s.owner && s.depth <= Math.min(a.now, lim) && t >= a.since + 8) {
+          this.cas.g += s.gar * 0.3; this.cas.gp += s.gar * 0.1; s.owner = 1; s.capturedAt = t; s.gar = 0; s.hidden = 0; this.milestone(s);
+          // men lying out or waiting in this stretch move up into it
+          for (const c of strips) if (c.cell === cell.i && c.men > 1 && c.state !== ST.spent && c.depth < s.depth && (c.state === ST.pinned || c.state === ST.halted || (c.state === ST.home && c.men > 0.25 * c.men0) || (c.state === ST.wait && c.start !== null && t >= c.start))) { c.state = ST.advance; c.rate = 0; c.obj = a.now - 200; c.crawling = c.depth > 0; }
+        }
+      }
+      // a stretch the record holds but nobody is in: men from this stretch go forward to it
+      if (a.now >= 0 && t >= a.since + 8 && Math.floor(t / 10) !== Math.floor((t - dt) / 10) && !byCell[cell.i].some(c => this.inGerman(c))) {
+        const held = cell.secs.map(id => secs[id]).filter(x => x.owner).pop();
+        if (held) for (const c of strips) if (c.cell === cell.i && c.men > 2 && c.depth < held.depth && (c.state !== ST.wait || (c.start !== null && t >= c.start)) && c.state !== ST.advance) { c.state = ST.advance; c.rate = 0; c.obj = held.depth - 200; c.crawling = c.depth > 0; }
+      }
+      if (t - cell.lastRevert >= 0.5) {
+        let deep: Section | null = null; for (const id of cell.secs) if (secs[id].owner && secs[id].depth > lim + 1) deep = secs[id];
+        if (deep) { this.revert(deep, 6, 'record'); cell.lastRevert = t; }
+      }
+    }
     // lodgements: dugouts, bombing fights, counter-attacks, resupply
     this.cause = 'counter';
     const lodged: number[] = [];
@@ -503,6 +582,7 @@ export class Battle {
     return Math.max(0, a - p.used);
   }
   private revert(s: Section, gar: number, why: string) {
+    if (why !== 'record' && this.locked(s)) return;
     s.owner = 0; s.gar = gar; s.hidden = 0; s.lift = Math.min(s.lift, this.t - s.tau);
     const cell = this.cells[s.cell]; if (!cell.div) return;
     const wd = this.why[cell.div]; if (wd) { const kk = `revert-${why}@${Math.floor(this.t / 60)}`; wd[kk] = (wd[kk] ?? 0) + 1; }
@@ -510,7 +590,7 @@ export class Battle {
     arr.push(this.t);
     const recent = arr.filter(x => this.t - x < 30).length;
     if (recent === 4 && !arr.some(x => this.t - x >= 30 && this.t - x < 90))
-      this.say(`${short(cell.div)}: ${why === 'dugouts' ? 'Germans emerge from uncleared dugouts behind the attackers' : why === 'counter' ? 'German bombing parties and counter-attacks retake captured trench' : 'captured trench given up'}${s.sp ? ` near ${s.sp}` : ''}`, cell, s.depth, cell.div);
+      this.say(`${short(cell.div)}: ${why === 'dugouts' ? 'Germans emerge from uncleared dugouts behind the attackers' : why === 'counter' || why === 'record' ? 'German bombing parties and counter-attacks retake captured trench' : 'captured trench given up'}${s.sp ? ` near ${s.sp}` : ''}`, cell, s.depth, cell.div);
   }
   private milestone(s: Section) {
     const cell = this.cells[s.cell]; if (!cell.div) return;
@@ -531,10 +611,15 @@ export class Battle {
   }
   private recordMinute() {
     const rec = this.rec, m = ++this.done, nC = rec.nStrip, nS = rec.nSec, nD = this.divNames.length;
-    for (let i = 0; i < nC; i++) { const c = this.strips[i]; rec.depth[m * nC + i] = Math.round(c.depth * 4); rec.men[m * nC + i] = Math.round(Math.min(255, c.men)); rec.state[m * nC + i] = c.state; }
+    const dv: Record<string, number> = {}; let tot = 0, killed = 0;
+    for (let i = 0; i < nC; i++) {
+      const c = this.strips[i], loss = Math.min(0.97 * c.men0, (c.men0 - c.men) * c.k);
+      rec.depth[m * nC + i] = Math.round(c.depth * 4); rec.men[m * nC + i] = Math.round(Math.min(255, c.men0 - loss)); rec.state[m * nC + i] = c.state;
+      dv[c.div] = (dv[c.div] ?? 0) + loss; tot += loss; killed += loss * (this.killedShare[c.div] ?? 0.34);
+    }
     for (let i = 0; i < nS; i++) rec.owner[m * nS + i] = this.secs[i].owner;
-    rec.cas.set([this.cas.b, this.cas.bk, this.cas.g, this.cas.gp], m * 4);
-    this.divNames.forEach((d, k) => (rec.divCas[m * nD + k] = this.divCas[d]));
+    rec.cas.set([tot, killed, this.cas.g, this.cas.gp], m * 4);
+    this.divNames.forEach((d, k) => (rec.divCas[m * nD + k] = dv[d] ?? 0));
   }
   /** simulate and record further minutes for up to `ms` milliseconds; returns true when the day is complete */
   advance(ms: number) {
