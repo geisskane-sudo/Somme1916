@@ -1,7 +1,7 @@
 {
   "_note": "Sector conditions for the simulation: causes, not outcomes. Drawn from The Western Front Companion (pp. 202-221) and Middlebrook; numbers are judgement where the sources give only a description (see 'why'). Times in minutes after zero (07:30); null = did not attack. Depths in metres from the British front line.",
   "corps": {
-    "VII Corps":  { "gerArt": 1.0,  "garrison": 1.0,  "why": "Gommecourt: strong German artillery untouched by counter-battery; 'triple barrage' on the 46th" },
+    "VII Corps":  { "gerArt": 1.0,  "garrison": 1.0,  "late": 1.0, "why": "Gommecourt: strong German artillery untouched by counter-battery; 'triple barrage' on the 46th; once the North Midland attack failed the barrage was kept on no man's land, cutting the London men off from bombs and reinforcements" },
     "VIII Corps": { "gerArt": 1.0,  "garrison": 1.0,  "why": "German batteries undamaged; defensive barrage on no man's land and British trenches" },
     "X Corps":    { "gerArt": 0.85, "garrison": 1.0,  "why": "26th Reserve Division, eight battalions, strong guns" },
     "III Corps":  { "gerArt": 0.8,  "garrison": 0.9,  "why": "" },
@@ -26,9 +26,9 @@
       "brigades": { "86th Brigade": 0, "87th Brigade": 0, "88th Brigade": 75 },
       "why": "Considerable uncut wire; Hawthorn mine at 07:20 warned the Germans; heavy artillery lifted at 07:20" },
     "36th (Ulster) Division": { "wire": 0.95, "dugoutMin": 2.5, "firstLift": 0, "finalLift": 160, "objective": 2300,
-      "creepOut": { "at": -15, "toGap": 90, "brigades": ["109th Brigade", "108th Brigade"] },
+      "creepOut": { "at": -15, "toGap": 90, "brigades": ["109th Brigade"], "battalions": ["13th Royal Irish Rifles", "11th Royal Irish Rifles"] },
       "brigades": { "108th Brigade": 0, "109th Brigade": 0, "107th Brigade": 40 },
-      "why": "German wire well cut; 109th Brigade crept to within 100 yards before the lift; objectives to the second line by 10:10" },
+      "why": "German wire well cut; 109th Brigade and the 108th south of the Ancre crept to within 100 yards from Thiepval Wood before the lift (the 108th north of the river did not, and was stopped); objectives to the second line by 10:10" },
     "32nd Division": { "wire": 0.7, "dugoutMin": 2.5, "firstLift": 0, "finalLift": 160, "objective": 2300,
       "creepOut": { "at": -7, "toGap": 35, "battalions": ["17th Highland Light Infantry"] },
       "brigades": { "96th Brigade": 0, "97th Brigade": 0, "14th Brigade": 75 },

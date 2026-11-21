@@ -11,8 +11,7 @@ const { units, divs } = buildUnits();
 const b = new Battle(units, divs);
 const bombLog: string[] = [];
 b.trace = tm => { if (tm % 60 !== 0 || tm < 480) return; const dv = process.env.DIV ?? ''; let m = 0, bs = 0; for (const c of b.strips) if (c.div === dv && (c.state === ST.hold || c.state === ST.mop)) { m += c.men; bs += c.bombs * c.men; } const cs = b.cells.filter(c => c.div === dv); bombLog.push(`${tm / 60}h bombs ${(bs / Math.max(1, m)).toFixed(2)} push ${(cs.reduce((a, c) => a + c.push, 0) / cs.length).toFixed(1)}`); };
-const g = b.run(); let r = g.next(); while (!r.done) r = g.next();
-const rec = r.value;
+const rec = b.runAll();
 const ms = Date.now() - t0;
 
 const hist = new Map<string, { casualties: number; nightLine: string }>();

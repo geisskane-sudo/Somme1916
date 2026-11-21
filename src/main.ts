@@ -3,6 +3,8 @@ import events from '../data/events.json';
 import { GEO, Dem, toXZ, toLL, pts, resample, offsetAway, project, at, hhmm, parseTime, type P } from './geo';
 import { buildUnits, type Battalion } from './units';
 import { Renderer, Camera, type Burst } from './render';
+import { Battle } from './battle';
+import { BattleView } from './battleview';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -14,6 +16,10 @@ function boot() {
   const canvas = $('gl') as HTMLCanvasElement;
   const r = new Renderer(canvas, dem, units);
   const cam = new Camera(dem);
+  const battle = new Battle(units, divs); battle.begin();
+  const bv = new BattleView(battle, r, units);
+  r.showBattalions = false;
+  let simDone = false;
   const L = r.lines;
   const G = resample(L.german, 30), Bf = resample(L.british, 30), S2 = resample(L.second, 30);
   const gSupport = offsetAway(G, 220, Bf), nml = Bf.map((p, i) => { const q = project(G, p); return { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }; });
@@ -37,13 +43,13 @@ function boot() {
   $('play').onclick = () => { if (t >= T1) t = T0; play(!playing); };
   const slider = $('slider') as HTMLInputElement;
   slider.min = String(T0); slider.max = String(T1); slider.step = '1';
-  slider.oninput = () => { t = Number(slider.value); prevT = t; r.bursts.length = 0; };
+  slider.oninput = () => { t = Math.min(Number(slider.value), bv.available); prevT = t; r.bursts.length = 0; };
 
   // ---------------- timetable ----------------
   const corpsByName = new Map(corps.map(c => [c.name, c]));
   const sectorCorps = (s: string) => { const m = /\b(VIII|VII|XIII|XV|III|X)\b/.exec(s); return m ? corpsByName.get(`${m[1]} Corps`) : undefined; };
   const mines = GEO.mines.map(m => ({ ...m, t: parseTime(m.time) ?? ZERO, p: toXZ(m.ll), fired: false }));
-  type Ev = { t: number; text: string; corps?: string; x?: number; z?: number };
+  type Ev = { t: number; text: string; corps?: string; x?: number; z?: number; sim?: boolean };
   const evs: Ev[] = [];
   for (const e of events.timeline) { const tt = parseTime(e.time); if (tt === null) continue; const c = sectorCorps(e.sector); evs.push({ t: tt, text: e.event, corps: c?.name, x: c?.x, z: c?.z }); }
   for (const m of mines) evs.push({ t: m.t, text: `${m.name} mine blown${m.charge_lb ? ` (${m.charge_lb.toLocaleString()} lb of ammonal)` : ''}${m.note ? ' — ' + m.note : ''}`, x: m.p.x, z: m.p.z });
@@ -131,6 +137,7 @@ function boot() {
   for (const g of GEO.germanUnits) { const q = toXZ(g.ll); mk(g.name, 'ger', q.x, q.z, 0, 9000, 5); }
   for (const m of mines) mk('✹ ' + m.name, 'mine', m.p.x, m.p.z, 0, 14000, 6, () => showMine(m));
   const bnLabs = units.map(u => mk(short(u.name), 'bn w' + u.wave, u.x, u.z, 0, 3200, 3, () => showBn(u)));
+  const moveBnLabels = () => bnLabs.forEach((l, i) => { const p = bv.bnPos[i]; if (Math.abs(p.x - l.x) + Math.abs(p.z - l.z) > 1) { l.x = p.x; l.z = p.z; l.y = undefined; } });
   function offsetPt(x: number, z: number, d: number) { const q = project(Bf, { x, z }); let nx = -q.tz, nz = q.tx; const g = project(G, q); if ((g.x - q.x) * nx + (g.z - q.z) * nz > 0) { nx = -nx; nz = -nz; } return { x: q.x + nx * d, z: q.z + nz * d }; }
   function short(n: string) { return n.replace("King's Own Yorkshire Light Infantry", 'KOYLI').replace('Northumberland Fusiliers', 'NF').replace('Royal Inniskilling Fusiliers', 'Innisks').replace('Royal Irish Rifles', 'RIR').replace('Royal Irish Fusiliers', 'R Ir F').replace('Highland Light Infantry', 'HLI').replace('York and Lancaster', 'Y&L').replace("King's Own Scottish Borderers", 'KOSB').replace('Lancashire Fusiliers', 'Lancs Fus').replace('Royal Dublin Fusiliers', 'Dublin Fus').replace('Sherwood Foresters', 'Sherwoods'); }
   const placeLabels = () => {
@@ -154,21 +161,40 @@ function boot() {
 
   // ---------------- info panels ----------------
   const info = $('info');
-  const show = (html: string) => { info.innerHTML = `<button class="x" id="info-x">×</button>${html}`; info.classList.remove('hidden'); $('info-x').onclick = () => info.classList.add('hidden'); };
+  const show = (html: string) => { openBn = null; openDiv = null; info.innerHTML = `<button class="x" id="info-x">×</button>${html}`; info.classList.remove('hidden'); $('info-x').onclick = () => info.classList.add('hidden'); };
   function showBn(u: Battalion) {
     const d = divs.find(x => x.name === u.division);
     show(`<h3>${esc(u.name)}</h3>${u.nick ? `<div class="nick">${esc(u.nick)}</div>` : ''}
       <p>${esc(u.brigade)} · ${esc(u.division)}<br>${esc(u.corps)}, ${esc(u.army)}</p>
       <p>${u.wave === 1 ? 'Leading wave' : u.wave === 2 ? 'Following wave' : 'Support / reserve brigade'}${u.involved ? '' : ' · not heavily involved on 1 July'}</p>
-      ${u.cas ? `<p class="cas">Casualties on 1 July: <b>${u.cas.total}</b> (${u.cas.officers} officers, ${u.cas.men} men)</p>` : '<p class="dim">Battalion casualty figure not yet in the data (only those over 500 are).</p>'}
+      ${bnLive(u)}
+      ${u.cas ? `<p class="cas">Recorded casualties on 1 July: <b>${u.cas.total}</b> (${u.cas.officers} officers, ${u.cas.men} men)</p>` : '<p class="dim">Recorded battalion casualties are in the data only for battalions that lost over 500.</p>'}
       ${d?.cas ? `<p class="dim">Division: ${d.cas.casualties.toLocaleString()} casualties, ${d.cas.killed.toLocaleString()} killed.</p>` : ''}
-      <p class="dim">Position approximate: placed along the division's frontage from the order of battle.</p>`);
+      <p class="dim">Start position approximate: placed along the division's frontage from the order of battle.</p>`);
+    openBn = u;
   }
+  let openBn: Battalion | null = null, openDiv: string | null = null;
+  function bnLive(u: Battalion) {
+    const bi = units.indexOf(u), cs = bv.companies(bi, t);
+    if (!cs.length) return '';
+    const men = cs.reduce((a, c) => a + c.men, 0), men0 = cs.reduce((a, c) => a + c.men0, 0);
+    return `<div id="live"><p><b>Simulation at ${hhmm(t)}</b> · ${Math.round(men)} of ${Math.round(men0)} men · ${Math.round(men0 - men)} casualties</p>
+      <table class="coys">${cs.map(c => `<tr><td>${c.name} Coy</td><td>${Math.round(c.men)}</td><td>${c.stateName}</td></tr>`).join('')}</table></div>`;
+  }
+  function divLive(name: string) {
+    const v = bv.divCas(name, t); if (v === null) return '';
+    const cells = battle.cells.filter(c => c.div === name);
+    let held = 0, deep = 0; for (const c of cells) { let d = -1; for (const id of c.secs) if (bv.owner(id, t)) d = battle.secs[id].depth - c.w; if (d >= 0) { held++; deep = Math.max(deep, d); } }
+    return `<div id="live"><p><b>Simulation at ${hhmm(t)}</b>: ${Math.round(v).toLocaleString()} casualties · ${cells.length ? Math.round(held / cells.length * 100) : 0}% of the frontage in German trenches${held ? `, up to ${Math.round(deep / 10) * 10} m deep` : ''}</p></div>`;
+  }
+  const refreshLive = () => { const el = document.getElementById('live'); if (!el || info.classList.contains('hidden')) return; const html = openBn ? bnLive(openBn) : openDiv ? divLive(openDiv) : ''; if (html) el.outerHTML = html; };
   function showDiv(name: string) {
     const d = divs.find(x => x.name === name)!; const bns = units.filter(u => u.division === name);
     show(`<h3>${esc(d.name)}</h3><p>${esc(d.corps)} · ${esc(d.commander)} · ${({ REG: 'Regular', NA: 'New Army', TF: 'Territorial' } as any)[d.type] ?? d.type}</p>
-      ${d.cas ? `<p class="cas">1 July: <b>${d.cas.casualties.toLocaleString()}</b> casualties, ${d.cas.killed.toLocaleString()} killed</p><p>By nightfall: ${esc(d.cas.nightLine)}</p>` : ''}
+      ${divLive(d.name)}
+      ${d.cas ? `<p class="cas">Recorded: <b>${d.cas.casualties.toLocaleString()}</b> casualties, ${d.cas.killed.toLocaleString()} killed</p><p>By nightfall: ${esc(d.cas.nightLine)}</p>` : ''}
       ${d.note ? `<p class="dim">${esc(d.note)}</p>` : ''}<p class="dim">${bns.length} battalions shown.</p>`);
+    openDiv = name; openBn = null;
   }
   function showCorps(name: string) {
     const c = corpsByName.get(name)!;
@@ -185,12 +211,13 @@ function boot() {
   const evEl = $('events');
   let lastEvCount = -1;
   const updateEvents = () => {
-    const past = evs.filter(e => e.t <= t);
+    const sim: Ev[] = battle.events.filter(e => e.t <= t).map(e => ({ t: e.t, text: e.text, x: e.x, z: e.z, sim: true }));
+    const past = [...evs.filter(e => e.t <= t), ...sim].sort((a, b) => a.t - b.t);
     if (past.length === lastEvCount) return;
-    if (playing && past.length > lastEvCount && lastEvCount >= 0) { const e = past[past.length - 1]; if (!e.text.includes(' mine blown')) toast(`${hhmm(e.t)} · ${e.text}`); }
+    if (playing && past.length > lastEvCount && lastEvCount >= 0) { const e = past[past.length - 1]; if (!e.text.includes(' mine') && t - e.t < 3) toast(`${hhmm(e.t)} · ${e.text}`); }
     lastEvCount = past.length;
     const list = past.slice(-7).reverse();
-    evEl.innerHTML = list.length ? list.map((e, i) => `<div class="ev" data-i="${i}"><span>${hhmm(e.t)}</span>${e.corps ? `<b>${esc(e.corps)}</b> ` : ''}${esc(e.text)}</div>`).join('') : '<div class="ev dim">The final bombardment is under way. Zero hour is 07:30.</div>';
+    evEl.innerHTML = list.length ? list.map((e, i) => `<div class="ev${e.sim ? ' sim' : ''}" data-i="${i}"><span>${hhmm(e.t)}</span>${e.corps ? `<b>${esc(e.corps)}</b> ` : ''}${esc(e.text)}</div>`).join('') : '<div class="ev dim">The final bombardment is under way. Zero hour is 07:30.</div>';
     (Array.from(evEl.querySelectorAll('.ev[data-i]')) as HTMLElement[]).forEach(el => { const e = list[Number(el.dataset.i)]; if (e.x !== undefined) { el.classList.add('click'); el.onclick = () => fly(e.x!, e.z!, e.corps ? 6500 : 2500); } });
   };
   let toastT = 0;
@@ -247,13 +274,9 @@ function boot() {
   function clickAt(cx: number, cy: number) {
     const g = cam.pick(cx * canvas.width / canvas.clientWidth, cy * canvas.height / canvas.clientHeight, dem);
     if (!g) return;
-    let best: Battalion | null = null, bd = Infinity;
-    for (const u of units) {
-      const dx = g.x - u.x, dz = g.z - u.z, a = Math.abs(dx * u.tx + dz * u.tz) - u.w / 2, b = Math.abs(dx * u.nx + dz * u.nz) - u.d / 2;
-      const d = Math.max(a, b); if (d < bd) { bd = d; best = u; }
-    }
     const slack = Math.max(15, cam.dist * 0.004);
-    if (best && bd < slack) return showBn(best);
+    const si = bv.pick(g.x, g.z, t, slack);
+    if (si >= 0) return showBn(units[battle.strips[si].bn]);
     const m = mines.find(m => Math.hypot(m.p.x - g.x, m.p.z - g.z) < Math.max(120, cam.dist * 0.01)); if (m) return showMine(m);
     const ll = toLL(g.x, g.z);
     show(`<p class="dim">${ll[0].toFixed(4)}° N, ${ll[1].toFixed(4)}° E · ${Math.round(ground(g.x, g.z))} m above sea level</p>`);
@@ -273,7 +296,7 @@ function boot() {
   $('begin').onclick = () => { $('intro').classList.add('hidden'); play(true); };
 
   // ---------------- main loop ----------------
-  let last = performance.now();
+  let last = performance.now(), liveT = 0;
   const frame = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     const k = keys, pan = 420 * dt;
@@ -282,16 +305,21 @@ function boot() {
     if (k.has('q')) cam.gyaw += dt; if (k.has('e')) cam.gyaw -= dt;
     if (k.has('r')) cam.gpitch -= dt * 0.7; if (k.has('f')) cam.gpitch += dt * 0.7;
     if (k.has('=') || k.has('+')) cam.gdist *= Math.exp(-dt * 1.5); if (k.has('-')) cam.gdist *= Math.exp(dt * 1.5);
+    if (!simDone) simDone = battle.advance(9);
     prevT = t;
-    if (playing) { t = Math.min(T1, t + dt * speed / 60); if (t >= T1) play(false); }
+    if (playing) { t = Math.min(T1, bv.available, t + dt * speed / 60); if (t >= T1) play(false); }
     for (const m of mines) if (prevT < m.t && t >= m.t && t - m.t < 4) mineBlast(m);
     effects(dt);
     // crater decals once a mine has gone up
     const decals: number[] = [];
     for (const m of mines) if (t >= m.t) { const R = m.crater_m * 0.8 + 6; r.quad(decals, m.p.x, m.p.z, R, 0, 0, R, [0.33, 0.29, 0.24, 0.95], 1, 2); r.quad(decals, m.p.x, m.p.z, R * 2.4, 0, 0, R * 2.4, [0.86, 0.84, 0.78, 0.55], 1, 1.5); }
+    bv.draw(t, cam); moveBnLabels();
     r.render(cam, light(t), decals, dt);
     $('clock').textContent = `${hhmm(t)}`;
-    $('phase').textContent = t < 6 * 60 + 25 ? 'Final morning of the bombardment' : t < 7 * 60 + 20 ? 'Intense bombardment' : t < ZERO ? 'Mines · troops moving into no man\'s land' : t < ZERO + 3 ? 'Zero hour' : t < 21 * 60 ? 'The attack' : 'Nightfall';
+    const tot = bv.totals(t);
+    $('score').innerHTML = t < 7 * 60 + 20 ? '' : `Simulated losses · British <b>${Math.round(tot.b).toLocaleString()}</b> · German <b>${Math.round(tot.g).toLocaleString()}</b>`;
+    if ((liveT -= dt) < 0) { liveT = 1; refreshLive(); }
+    $('phase').textContent = !simDone && t >= bv.available - 0.5 && t < T1 ? `Simulating… ${hhmm(bv.available)}` : t < 6 * 60 + 25 ? 'Final morning of the bombardment' : t < 7 * 60 + 20 ? 'Intense bombardment' : t < ZERO ? 'Mines · troops moving into no man\'s land' : t < ZERO + 3 ? 'Zero hour' : t < 21 * 60 ? 'The attack' : 'Nightfall';
     if (document.activeElement !== slider) slider.value = String(t);
     updateEvents();
     placeLabels();
@@ -301,7 +329,7 @@ function boot() {
   $('loading').classList.add('hidden');
   $('intro').classList.remove('hidden');
   requestAnimationFrame(frame);
-  (window as any).__app = { cam, r, units, divs, corps, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
+  (window as any).__app = { cam, r, units, divs, corps, battle, bv, get simDone() { return simDone; }, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
 }
 
 window.addEventListener('error', e => { const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Error: ' + e.message; });

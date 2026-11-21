@@ -138,7 +138,12 @@ export class Renderer {
   private terrain!: { vao: WebGLVertexArrayObject; n: number; type: number };
   private tex!: WebGLTexture;
   private ribbons: Ribbon[] = [];
-  private blocks!: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number };
+  private blocks!: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number; nBn: number };
+  /** draw the static battalion start positions (off once companies are drawn from the battle) */
+  showBattalions = true;
+  private live: Ribbon[] = [];
+  private liveBuf: WebGLBuffer[] = [];
+  private flat = new Float32Array(10 * 6 * 6000); private flatN = 0;
   private dyn!: { vao: WebGLVertexArrayObject; buf: WebGLBuffer };
   private ptsVao!: WebGLVertexArrayObject; private ptsBuf!: WebGLBuffer; private ptsArr = new Float32Array(8 * 20000);
   bursts: Burst[] = [];
@@ -341,13 +346,58 @@ export class Renderer {
       if (!u.involved) col[3] *= 0.55;
       this.quad(out, u.x, u.z, u.tx * u.w / 2, u.tz * u.w / 2, u.nx * u.d / 2, u.nz * u.d / 2, col, 0);
     }
+    const nBn = out.length / 10;
     for (const g of GEO.germanUnits) {
       const p = toXZ(g.ll);
       this.quad(out, p.x, p.z, 170, 0, 0, 120, [0.12, 0.4, 0.2, 0.85], 0);
     }
     const b = this.makeBlockBuffer(), gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, b.buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.STATIC_DRAW);
-    this.blocks = { ...b, n: out.length / 10 };
+    this.blocks = { ...b, n: out.length / 10, nBn };
+  }
+
+  // ---------- per-frame shapes from the battle ----------
+  /** start a new frame's worth of flat quads */
+  clearFlat() { this.flatN = 0; }
+  /** a single-quad block lying on the ground: centre, half-axes, colour */
+  flatQuad(cx: number, cz: number, ax: number, az: number, bx: number, bz: number, r: number, g: number, b: number, a: number, lift = 3) {
+    if ((this.flatN + 6) * 10 > this.flat.length) { const n = new Float32Array(this.flat.length * 2); n.set(this.flat); this.flat = n; }
+    const A = this.flat, h = this.dem;
+    const P = [[cx - ax - bx, cz - az - bz, 0, 0], [cx + ax - bx, cz + az - bz, 1, 0], [cx - ax + bx, cz - az + bz, 0, 1], [cx + ax + bx, cz + az + bz, 1, 1]];
+    const ys = P.map(p => h.height(p[0], p[1]) + lift), y = Math.max(...ys);
+    for (const k of [0, 2, 1, 1, 2, 3]) {
+      const o = this.flatN++ * 10, q = P[k];
+      A[o] = q[0]; A[o + 1] = (ys[k] + y) / 2; A[o + 2] = q[1]; A[o + 3] = q[2]; A[o + 4] = q[3];
+      A[o + 5] = r; A[o + 6] = g; A[o + 7] = b; A[o + 8] = a; A[o + 9] = 0;
+    }
+  }
+  /** set (or replace) live line k: one or more polylines drawn with constant screen width */
+  setLive(k: number, lines: P[][], color: [number, number, number, number], width: number, lift = 5) {
+    const gl = this.gl;
+    if (!this.live[k]) {
+      const vao = gl.createVertexArray()!, buf = gl.createBuffer()!;
+      gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      for (const [loc, size, off] of [[0, 3, 0], [1, 2, 3], [2, 1, 5], [3, 1, 6]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 28, off * 4); }
+      gl.bindVertexArray(null);
+      this.live[k] = { vao, n: 0, color, width, dash: 0, lift }; this.liveBuf[k] = buf;
+    }
+    const v: number[] = [];
+    for (const q of lines) {
+      if (q.length < 2) continue;
+      if (v.length) { const a = v.slice(-7); v.push(...a); } // degenerate join between strips
+      let u = 0, first = true;
+      q.forEach((s, i) => {
+        const a = q[Math.max(0, i - 1)], b = q[Math.min(q.length - 1, i + 1)];
+        let nx = -(b.z - a.z), nz = b.x - a.x; const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
+        if (i) u += Math.hypot(s.x - q[i - 1].x, s.z - q[i - 1].z);
+        const y = this.dem.height(s.x, s.z);
+        if (first && v.length) v.push(s.x, y, s.z, nx, nz, -1, u);
+        first = false;
+        v.push(s.x, y, s.z, nx, nz, -1, u, s.x, y, s.z, nx, nz, 1, u);
+      });
+    }
+    const R = this.live[k]; R.color = color; R.width = width; R.lift = lift; R.n = v.length / 7;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.liveBuf[k]); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.DYNAMIC_DRAW);
   }
 
   // ---------- frame ----------
@@ -372,11 +422,14 @@ export class Renderer {
     // blocks and crater decals
     gl.useProgram(this.pB); gl.uniformMatrix4fv(this.uB.uVP, false, cam.vp);
     if (decals.length) { gl.bindVertexArray(this.dyn.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.dyn.buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(decals), gl.DYNAMIC_DRAW); gl.drawArrays(gl.TRIANGLES, 0, decals.length / 10); }
-    gl.bindVertexArray(this.blocks.vao); gl.drawArrays(gl.TRIANGLES, 0, this.blocks.n);
+    gl.bindVertexArray(this.blocks.vao);
+    if (this.showBattalions) gl.drawArrays(gl.TRIANGLES, 0, this.blocks.n); else gl.drawArrays(gl.TRIANGLES, this.blocks.nBn, this.blocks.n - this.blocks.nBn);
+    if (this.flatN) { gl.bindVertexArray(this.dyn.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.dyn.buf); gl.bufferData(gl.ARRAY_BUFFER, this.flat.subarray(0, this.flatN * 10), gl.DYNAMIC_DRAW); gl.drawArrays(gl.TRIANGLES, 0, this.flatN); }
     // ribbons
     gl.useProgram(this.pR);
     gl.uniformMatrix4fv(this.uR.uVP, false, cam.vp); gl.uniform3f(this.uR.uCam, cam.ex, cam.ey, cam.ez); gl.uniform1f(this.uR.uPx, cam.px);
-    for (const r of this.ribbons) {
+    for (const r of [...this.ribbons, ...this.live]) {
+      if (!r.n) continue;
       gl.uniform1f(this.uR.uWidth, r.width * Math.min(2, window.devicePixelRatio || 1)); gl.uniform1f(this.uR.uLift, r.lift);
       gl.uniform4fv(this.uR.uColor, r.color); gl.uniform1f(this.uR.uDash, r.dash);
       gl.bindVertexArray(r.vao); gl.drawArrays(gl.TRIANGLE_STRIP, 0, r.n);

@@ -22,6 +22,11 @@
   #legend i { display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
   #legend .b { background: var(--brit); } #legend .g { background: var(--ger); } #legend .g2 { background: repeating-linear-gradient(90deg, var(--ger) 0 5px, transparent 5px 9px); }
   #legend .blk { width: 12px; height: 8px; background: var(--brit); border: 1px solid #4d1410; }
+  #legend .pin { width: 12px; height: 8px; background: #94755f; border: 1px solid #4d3a2c; } #legend .cap { width: 14px; height: 8px; background: rgba(219,31,26,0.45); }
+  #legend .adv { width: 16px; height: 4px; background: #f22918; }
+  #score { margin-top: 6px; font-size: 12px; color: var(--dim); } #score b { color: #ff9a85; }
+  .ev.sim { color: #ffd9c9; } .ev.sim::before { content: '◆ '; color: var(--brit); font-size: 9px; }
+  table.coys { border-collapse: collapse; font-size: 12px; margin: 2px 0 4px; } table.coys td { padding: 1px 8px 1px 0; } table.coys td:nth-child(2) { text-align: right; color: #ff9a85; }
   #events { position: fixed; top: 8px; right: 8px; width: min(360px, 40vw); padding: 6px 9px; max-height: 45vh; overflow: auto; font-size: 12px; }
   .ev { margin: 4px 0; } .ev span { color: var(--accent); margin-right: 5px; } .ev.click { cursor: pointer; } .ev.click:hover { color: #fff; } .dim { color: var(--dim); }
   #bar { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); width: min(760px, calc(100% - 16px)); padding: 8px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -63,9 +68,10 @@
 
 <div id="top" class="panel">
   <h1>1 July 1916</h1>
-  <div class="sub">The British attack on the Somme, Gommecourt to Maricourt · early prototype</div>
+  <div class="sub">The British attack on the Somme, Gommecourt to Maricourt · a simulation</div>
   <div class="row"><button id="b-whole">Whole front</button><select id="goto"></select><button id="b-help">?</button></div>
-  <div id="legend"><span><i class="b"></i>British front line</span><span><i class="g"></i>German front line</span><span><i class="g2"></i>German second line</span><span><i class="blk"></i>Battalion</span></div>
+  <div id="legend"><span><i class="b"></i>British front line</span><span><i class="g"></i>German front line</span><span><i class="g2"></i>German second line</span><span><i class="blk"></i>Company</span><span><i class="pin"></i>Pinned down</span><span><i class="cap"></i>Captured trench</span><span><i class="adv"></i>Furthest British advance</span></div>
+  <div id="score"></div>
 </div>
 <div id="events" class="panel"></div>
 <div id="toast"></div>
@@ -84,9 +90,10 @@
   <ul>
     <li><b>Zoom out</b> to see the whole front and the corps; <b>zoom in</b> to see divisions, then battalions in their trenches.</li>
     <li>The clock starts at 06:00. Watch the final bombardment, the mines at 07:20 and 07:28, and zero hour at 07:30. Pause, change speed or drag the timeline.</li>
-    <li>Click a battalion, division, corps or mine for details. Events appear top right; click one to fly there.</li>
+    <li>Every attacking battalion is shown as its four companies. Watch them cross no man's land, go to ground, break into the German trenches, hold on or fall back. The red line marks the furthest British advance.</li>
+    <li>Click a company, division, corps or mine for details. Events appear top right (◆ marks events from the simulation); click one to fly there.</li>
   </ul>
-  <p class="dim" style="font-size:12px">This first version shows the start positions and the timetable. The battle itself (attacks going in, succeeding or failing, and the front lines moving) is the next stage. Trench lines are traced from 1916 trench maps and are approximate; battalion positions are placed along each division's frontage; the Montauban–Maricourt sector is drawn without a trench map.</p>
+  <p class="dim" style="font-size:12px">The fighting is a simulation, not a replay. It knows each sector's conditions: the state of the wire and the dugouts, the barrage timetable, troops creeping out early, smoke, the mines, German guns and reserves. It works out the outcome from those, and is checked against the casualties and night positions in the record. Trench lines are traced from 1916 trench maps and are approximate. Companies are placed along each division's frontage, and the Montauban–Maricourt sector is drawn without a trench map.</p>
   <button id="begin">Begin at 06:00</button>
 </div></div>
 
@@ -95,6 +102,8 @@
   <p><b>Mouse:</b> drag to move · wheel to zoom · right-drag (or Shift-drag) to rotate and tilt · click for details.<br>
   <b>Touch:</b> drag to move · pinch to zoom · twist to rotate · two fingers up/down to tilt · tap for details.<br>
   <b>Keys:</b> <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> rotate · <kbd>R</kbd>/<kbd>F</kbd> tilt · <kbd>+</kbd>/<kbd>−</kbd> zoom · <kbd>Space</kbd> pause.</p>
+  <h2>How the simulation works</h2>
+  <p class="dim">The front is cut into 100 m stretches. Each has the German front, support and reserve trenches, intermediate lines and the second position. Each British company advances along its stretch at walking pace, or rushes if it crept out early. German riflemen and machine guns fire on men in the open, and strongpoints fire into neighbouring stretches. German guns shell no man's land and the British trenches. When the barrage lifts, the Germans race up from their dugouts to the parapet, and the attackers must get there first. Companies that lose men too fast go to ground in shell holes, and crawl back after dark. Captured trenches are bombed from the flanks and counter-attacked by German reserves. They hold only while bombs can be carried across no man's land. Overall the simulation gives about 57,600 British casualties, against 57,470 in the record.</p>
   <h2>Sources</h2>
   <p class="dim">Order of battle and casualties: M. Middlebrook, <i>The First Day on the Somme</i>; <i>The Western Front Companion</i>. Trench maps: National Library of Scotland (CC-BY). Elevation: Copernicus GLO-30 DEM (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA). Reference points: CWGC, Wikipedia.</p>
   <button>Close</button>

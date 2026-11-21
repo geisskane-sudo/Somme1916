@@ -702,11 +702,6 @@
          "name": "108th Brigade",
          "battalions": [
           {
-           "name": "11th Royal Irish Rifles",
-           "nick": "South Antrim",
-           "involved": true
-          },
-          {
            "name": "12th Royal Irish Rifles",
            "nick": "Central Antrim",
            "involved": true
@@ -719,6 +714,11 @@
           {
            "name": "9th Royal Irish Fusiliers",
            "nick": "Co. Armagh, Monaghan and Cavan",
+           "involved": true
+          },
+          {
+           "name": "11th Royal Irish Rifles",
+           "nick": "South Antrim",
            "involved": true
           }
          ]

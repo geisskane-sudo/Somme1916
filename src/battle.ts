@@ -55,10 +55,10 @@ export const K = {
   artTrench: 0.0006,
   assaultB: 0.25,   // British hit per manning German per minute at the parapet
   assaultG: 0.25,   // Germans hit per attacker per minute
-  clear: 0.04, counter: 0.02, bombUse: 0.01, resupply: 0.02,
+  clear: 0.04, counter: 0.006, bombUse: 0.01, resupply: 0.02,
   artHeld: 0.35,    // German shellfire on captured trenches, relative to no man's land
   speed: 50, retireSpeed: 40, pinnedExp: 0.0003,
-  counterG: 1.2,    // German losses per British defender relative to K.counter
+  counterG: 4,    // German losses per British defender relative to K.counter
   rcap: 20,         // most German reserves that can press one 100 m stretch at once
   push: 30,         // minutes × superiority needed to retake a stretch
   crawl: 0.008,     // loss rate below which pinned men move forward into a captured trench
@@ -178,7 +178,7 @@ export class Battle {
     for (const sp of plan.strongpoints) {
       const p = toXZ(sp.ll as [number, number]);
       const near = this.secs.map(s => { const w = this.world(this.cells[s.cell].s, s.depth); return { s, d: Math.hypot(w.x - p.x, w.z - p.z) }; })
-        .filter(o => o.d < 260).sort((a, b) => a.d - b.d).slice(0, 4);
+        .sort((a, b) => a.d - b.d).filter((o, k, arr) => o.d < 260 || o.d < arr[0].d + 150).slice(0, 4);
       for (const o of near) { o.s.mg += sp.mg / near.length; o.s.gar += 10; o.s.gar0 = o.s.gar; o.s.sp = sp.name; }
     }
   }
@@ -219,10 +219,10 @@ export class Battle {
     return v;
   }
   gerArt(c: Cell, t: number) {
-    const A = (plan.corps as Record<string, { gerArt: number }>)[c.corps]?.gerArt ?? 0.8;
+    const C = (plan.corps as Record<string, { gerArt: number; late?: number }>)[c.corps], A = C?.gerArt ?? 0.8, late = C?.late ?? 0.3;
     let f: number;
     if (t < ZERO - 6) f = 0.05; else if (t < ZERO + 4) f = 0.05 + 0.95 * (t - (ZERO - 6)) / 10; else if (t < ZERO + 120) f = 1;
-    else if (t < ZERO + 300) f = 0.5; else f = 0.3;
+    else if (t < ZERO + 300) f = Math.max(0.5, late); else f = late;
     return A * f;
   }
   private exposure(c: Strip, w: number) {
@@ -468,7 +468,7 @@ export class Battle {
         const armed = bombs > 0.08;
         const bl = K.counter * Pt * (armed ? 1 : 2.5) * dt * H / Math.max(1, Hn);
         const gl = Math.min(0.08 * Pt, K.counter * Hn * K.counterG * (armed ? 1 : 0.3)) * dt;
-        for (const c of B) { this.hurt(c, bl * c.men / H); c.bombs = Math.max(0, c.bombs - K.bombUse * Math.min(3, 10 * Pt / Math.max(10, H)) * dt); }
+        for (const c of B) { this.hurt(c, bl * c.men / H); c.bombs = Math.max(0, c.bombs - K.bombUse * Math.min(3, Pt / 8) * dt); }
         const fromR = Math.min(R, gl * R / Pt); this.pool[cell.reg].used += fromR;
         for (const o of srcs) o.gar = Math.max(0, o.gar - (gl - fromR) / srcs.length);
         this.cas.g += gl;
@@ -519,21 +519,36 @@ export class Battle {
     if (what[s.kind]) this.say(`${short(cell.div)} ${what[s.kind]}${s.sp ? ` at ${s.sp}` : ''}`, cell, s.depth, cell.div);
   }
 
-  /** run the whole day, recording every minute; yields progress 0..1 */
-  *run(): Generator<number, Recording> {
+  /** recording of the day, filled minute by minute by advance() */
+  rec!: Recording;
+  /** last minute recorded (minutes after T0) */
+  done = -1;
+  begin() {
     const minutes = T1 - T0 + 1, nC = this.strips.length, nS = this.secs.length, nD = this.divNames.length;
-    const rec: Recording = { minutes, nStrip: nC, nSec: nS, depth: new Int16Array(minutes * nC), men: new Uint8Array(minutes * nC), state: new Uint8Array(minutes * nC), owner: new Uint8Array(minutes * nS), cas: new Float32Array(minutes * 4), divCas: new Float32Array(minutes * nD) };
-    for (let m = 0; m < minutes; m++) {
-      for (let i = 0; i < nC; i++) { const c = this.strips[i]; rec.depth[m * nC + i] = Math.round(c.depth * 4); rec.men[m * nC + i] = Math.round(Math.min(255, c.men)); rec.state[m * nC + i] = c.state; }
-      for (let i = 0; i < nS; i++) rec.owner[m * nS + i] = this.secs[i].owner;
-      rec.cas.set([this.cas.b, this.cas.bk, this.cas.g, this.cas.gp], m * 4);
-      this.divNames.forEach((d, k) => (rec.divCas[m * nD + k] = this.divCas[d]));
-      if (this.trace && (m < 160 ? m % 3 === 0 : m % 60 === 0)) this.trace(m + T0);
-      if (m < minutes - 1) for (let k = 0; k < 3; k++) this.step();
-      if (m % 30 === 0) yield m / minutes;
-    }
-    return rec;
+    this.rec = { minutes, nStrip: nC, nSec: nS, depth: new Int16Array(minutes * nC), men: new Uint8Array(minutes * nC), state: new Uint8Array(minutes * nC), owner: new Uint8Array(minutes * nS), cas: new Float32Array(minutes * 4), divCas: new Float32Array(minutes * nD) };
+    this.done = -1;
+    this.recordMinute();
   }
+  private recordMinute() {
+    const rec = this.rec, m = ++this.done, nC = rec.nStrip, nS = rec.nSec, nD = this.divNames.length;
+    for (let i = 0; i < nC; i++) { const c = this.strips[i]; rec.depth[m * nC + i] = Math.round(c.depth * 4); rec.men[m * nC + i] = Math.round(Math.min(255, c.men)); rec.state[m * nC + i] = c.state; }
+    for (let i = 0; i < nS; i++) rec.owner[m * nS + i] = this.secs[i].owner;
+    rec.cas.set([this.cas.b, this.cas.bk, this.cas.g, this.cas.gp], m * 4);
+    this.divNames.forEach((d, k) => (rec.divCas[m * nD + k] = this.divCas[d]));
+  }
+  /** simulate and record further minutes for up to `ms` milliseconds; returns true when the day is complete */
+  advance(ms: number) {
+    const end = performance.now() + ms;
+    while (this.done < this.rec.minutes - 1) {
+      if (this.trace) this.trace(this.done + T0);
+      for (let k = 0; k < 3; k++) this.step();
+      this.recordMinute();
+      if (performance.now() > end) break;
+    }
+    return this.done >= this.rec.minutes - 1;
+  }
+  /** run the whole day at once */
+  runAll() { this.begin(); while (!this.advance(1e9)); return this.rec; }
 
   /** depth into the German position held at the given moment, per cell (-1 = nothing) */
   heldDepth(cellIndex: number, owner: (sid: number) => number) {
