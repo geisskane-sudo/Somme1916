@@ -15,6 +15,7 @@
 import plan from '../data/plan.json';
 import record from '../data/record.json';
 import steer from '../data/steer.json';
+import thiepval from '../data/thiepval.json';
 import { GEO, pts, resample, project, at, toXZ, type P } from './geo';
 import type { Battalion, DivInfo } from './units';
 
@@ -25,7 +26,7 @@ const DT = 1 / 3;
 export const ST = { wait: 0, advance: 1, halted: 2, assault: 3, hold: 4, pinned: 5, retire: 6, spent: 7, home: 8, mop: 9 } as const;
 export const ST_NAME = ['waiting in the trenches', 'advancing', 'waiting for the barrage to lift', 'assaulting a trench', 'holding a captured trench', 'pinned down in no man\'s land', 'falling back', 'broken up', 'back in the British lines', 'clearing dugouts'];
 
-export interface Cell { i: number; s: number; bx: number; bz: number; ax: number; az: number; w: number; d2: number | null; corps: string; div: string | null; reg: number; secs: number[]; lastRevert: number; push: number }
+export interface Cell { /** German trench depths from a georeferenced 1:5000 sheet, where one covers this stretch */ traced?: number[]; i: number; s: number; bx: number; bz: number; ax: number; az: number; w: number; d2: number | null; corps: string; div: string | null; reg: number; secs: number[]; lastRevert: number; push: number }
 export interface Section { id: number; cell: number; line: number; depth: number; kind: string; gar: number; gar0: number; mg: number; owner: 0 | 1; lift: number; tau: number; hidden: number; capturedAt: number; sp: string | null }
 /** one company's strip in one cell */
 export interface Strip {
@@ -42,6 +43,8 @@ export interface BattleEvent { t: number; text: string; x: number; z: number; di
 export interface Recording {
   minutes: number; nStrip: number; nSec: number;
   depth: Int16Array;   // ×4
+  /** German men in each section per minute: manning the parapet, and in all */
+  gm: Uint8Array; gar: Uint8Array;
   men: Uint8Array; state: Uint8Array; owner: Uint8Array;
   cas: Float32Array;   // per minute: British casualties, killed, German casualties, prisoners
   divCas: Float32Array; // per minute × division
@@ -146,7 +149,8 @@ export class Battle {
         const tt = ((p1.x - b.x) * ez - (p1.z - b.z) * ex) / den, u = ((p1.x - b.x) * az - (p1.z - b.z) * ax) / den;
         if (u >= 0 && u <= 1 && tt > w + 400 && tt < 5000 && (d2 === null || tt < d2)) d2 = tt;
       }
-      this.cells.push({ i, s, bx: b.x, bz: b.z, ax, az, w, d2, corps: corpsOf.get(nearest.div) ?? 'X Corps', div: inDiv ? inDiv.div : null, reg, secs: [], lastRevert: -99, push: 0 });
+      const tr = tracedDepths(b.x, b.z, ax, az, w);
+      this.cells.push({ traced: tr ?? undefined, i, s, bx: b.x, bz: b.z, ax, az, w: tr ? tr[0] : w, d2, corps: corpsOf.get(nearest.div) ?? 'X Corps', div: inDiv ? inDiv.div : null, reg, secs: [], lastRevert: -99, push: 0 });
     }
   }
   /** world position of a point at `depth` along the attack axis at arc length s */
@@ -168,8 +172,9 @@ export class Battle {
     const corps = plan.corps as Record<string, { gerArt: number; garrison: number }>;
     for (const c of this.cells) {
       const P = this.planOf(c), gf = corps[c.corps]?.garrison ?? 1;
+      const T = c.traced, sup = T?.[1] ?? c.w + 140, res = T?.[2] ?? Math.max(sup + 120, c.w + 300);
       const lines: { d: number; kind: string; gar: number; mg: number }[] = [
-        { d: c.w, kind: 'front', gar: 22, mg: 0.3 }, { d: c.w + 140, kind: 'support', gar: 14, mg: 0.1 }, { d: c.w + 300, kind: 'reserve', gar: 12, mg: 0.1 },
+        { d: c.w, kind: 'front', gar: 22, mg: 0.3 }, { d: sup, kind: 'support', gar: 14, mg: 0.1 }, { d: res, kind: 'reserve', gar: 12, mg: 0.1 },
       ];
       const end = c.d2 ?? c.w + 1800;
       for (let d = c.w + 800; d < end - 250; d += 500) lines.push({ d, kind: 'intermediate', gar: 6, mg: 0.05 });
@@ -605,7 +610,7 @@ export class Battle {
   done = -1;
   begin() {
     const minutes = T1 - T0 + 1, nC = this.strips.length, nS = this.secs.length, nD = this.divNames.length;
-    this.rec = { minutes, nStrip: nC, nSec: nS, depth: new Int16Array(minutes * nC), men: new Uint8Array(minutes * nC), state: new Uint8Array(minutes * nC), owner: new Uint8Array(minutes * nS), cas: new Float32Array(minutes * 4), divCas: new Float32Array(minutes * nD) };
+    this.rec = { minutes, nStrip: nC, nSec: nS, depth: new Int16Array(minutes * nC), men: new Uint8Array(minutes * nC), state: new Uint8Array(minutes * nC), owner: new Uint8Array(minutes * nS), gm: new Uint8Array(minutes * nS), gar: new Uint8Array(minutes * nS), cas: new Float32Array(minutes * 4), divCas: new Float32Array(minutes * nD) };
     this.done = -1;
     this.recordMinute();
   }
@@ -617,7 +622,7 @@ export class Battle {
       rec.depth[m * nC + i] = Math.round(c.depth * 4); rec.men[m * nC + i] = Math.round(Math.min(255, c.men0 - loss)); rec.state[m * nC + i] = c.state;
       dv[c.div] = (dv[c.div] ?? 0) + loss; tot += loss; killed += loss * (this.killedShare[c.div] ?? 0.34);
     }
-    for (let i = 0; i < nS; i++) rec.owner[m * nS + i] = this.secs[i].owner;
+    for (let i = 0; i < nS; i++) { const x = this.secs[i]; rec.owner[m * nS + i] = x.owner; rec.gar[m * nS + i] = Math.min(255, Math.round(x.gar)); rec.gm[m * nS + i] = Math.min(255, Math.round(x.gar * this.manning(x, this.t))); }
     rec.cas.set([tot, killed, this.cas.g, this.cas.gp], m * 4);
     this.divNames.forEach((d, k) => (rec.divCas[m * nD + k] = dv[d] ?? 0));
   }
@@ -643,3 +648,31 @@ export class Battle {
   }
 }
 export const short = (d: string) => d.replace(/ \(.*?\)/, '').replace(' Division', ' Div');
+
+// ---------------- traced trenches (Thiepval sheet) ----------------
+type XZ = [number, number];
+const TF = thiepval.front as XZ[], TT = thiepval.trenches as XZ[][], TC = thiepval.corners as XZ[];
+function inside(x: number, z: number, poly: XZ[]) {
+  let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c;
+}
+/** distances along a ray to every crossing of a polyline */
+function crossings(bx: number, bz: number, ax: number, az: number, P: XZ[], out: number[]) {
+  for (let k = 1; k < P.length; k++) {
+    const [x1, z1] = P[k - 1], [x2, z2] = P[k], ex = x2 - x1, ez = z2 - z1, den = ax * ez - az * ex; if (Math.abs(den) < 1e-9) continue;
+    const t = ((x1 - bx) * ez - (z1 - bz) * ex) / den, u = ((x1 - bx) * az - (z1 - bz) * ax) / den;
+    if (u >= 0 && u <= 1 && t > 0) out.push(t);
+  }
+}
+/** [front, support?, reserve?] depths for a stretch whose German front lies on the sheet, else null */
+function tracedDepths(bx: number, bz: number, ax: number, az: number, w: number): number[] | null {
+  if (!inside(bx + ax * w, bz + az * w, TC)) return null;
+  const f: number[] = []; crossings(bx, bz, ax, az, TF, f);
+  const front = f.filter(d => Math.abs(d - w) < 180 && d > 150).sort((a, b) => Math.abs(a - w) - Math.abs(b - w))[0];
+  if (front === undefined) return null;
+  const all: number[] = []; for (const P of TT) crossings(bx, bz, ax, az, P, all);
+  all.sort((a, b) => a - b);
+  const out = [front];
+  const sup = all.find(d => d > front + 50 && d < front + 260); if (sup !== undefined) out.push(sup);
+  const res = all.find(d => d > (sup ?? front + 140) + 60 && d < (sup ?? front + 140) + 320); if (sup !== undefined && res !== undefined) out.push(res);
+  return out;
+}
