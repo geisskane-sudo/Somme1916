@@ -6,7 +6,7 @@ import { Renderer, Camera, type Burst } from './render';
 import { Battle } from './battle';
 import { BattleView } from './battleview';
 import { loadSheet } from './closeground';
-import { craters } from './shelling';
+import { shellBands } from './shelling';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -21,7 +21,7 @@ function boot() {
   const battle = new Battle(units, divs); battle.begin();
   const bv = new BattleView(battle, r, units);
   r.setGermanFront(battle.germanFrontPath());
-  r.craterSource = box => craters(battle, box);
+  r.setShelling(shellBands(battle));
   r.showBattalions = false;
   let sheetReady = false; loadSheet(r).then(() => (sheetReady = true)).catch(() => {});
   let simDone = false;

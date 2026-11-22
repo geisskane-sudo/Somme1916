@@ -17,8 +17,35 @@ void main(){ vPos=aPos; vN=aN; vUV=aUV; gl_Position=uVP*vec4(aPos,1.0); }`;
 const TERRAIN_FS = `#version 300 es
 precision highp float;
 in vec3 vPos; in vec3 vN; in vec2 vUV; uniform sampler2D uTex; uniform vec3 uSun, uSunCol, uSky, uCam, uFog; uniform float uFogDen, uContour;
-uniform sampler2D uDetail, uMap; uniform vec4 uDB; uniform vec4 uHoles[8]; uniform float uDetailOn, uMapOn; uniform vec3 uMapA, uMapB; uniform vec4 uMapFrame;
+uniform sampler2D uDetail, uMap, uAux; uniform vec4 uDB; uniform vec4 uHoles[8]; uniform float uDetailOn, uMapOn; uniform vec3 uMapA, uMapB; uniform vec4 uMapFrame;
 out vec4 o;
+// close-up detail drawn per pixel, so it is sharp at any zoom: grass, shell holes where the aux map
+// says the ground was shelled (red channel: chance of a hole per 6 m square), tree crowns in woods (green)
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec2 hash22(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash12(i), hash12(i + vec2(1, 0)), f.x), mix(hash12(i + vec2(0, 1)), hash12(i + 1.0), f.x), f.y); }
+vec3 holes(vec3 base, vec2 p, float cell, float chance, float r0, float r1, float salt) {
+  vec2 g = floor(p / cell);
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 id = g + vec2(i, j) + salt;
+    if (hash12(id) >= chance) continue;
+    vec2 c = (g + vec2(i, j) + 0.1 + 0.8 * hash22(id)) * cell;
+    float r = r0 + (r1 - r0) * pow(hash12(id + 7.3), 3.0), d = length(p - c) / r;
+    if (d > 1.6) continue;
+    if (d > 1.0) { base = mix(base, vec3(0.80, 0.77, 0.66), 0.38 * (1.0 - (d - 1.0) / 0.6)); continue; }   // thrown-up chalk
+    vec3 n = normalize(vec3((c - p) / r * 0.9, 1.0));                                                   // the bowl faces inwards
+    float lit = (0.35 + 0.65 * max(dot(n, uSun), 0.0)) / (0.35 + 0.65 * max(uSun.y, 0.25));
+    base = mix(base, vec3(0.47, 0.40, 0.31), 0.55 + 0.25 * (1.0 - d)) * lit;
+  }
+  return base;
+}
+vec3 crowns(vec3 base, vec2 p) {
+  vec2 g = floor(p / 4.5); float best = 9.0, h = 0.0;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 id = g + vec2(i, j), c = (id + hash22(id)) * 4.5; float d = length(p - c) / (2.2 + 1.6 * hash12(id + 3.1)); if (d < best) { best = d; h = hash12(id + 9.7); } }
+  float shade = best < 1.0 ? 0.78 + 0.5 * (1.0 - best) * (0.6 + 0.4 * h) : 0.6;
+  return base * shade;
+}
 void main(){
   for (int i = 0; i < 8; i++) if (uHoles[i].w > 0.0 && distance(vPos.xz, uHoles[i].xy) < uHoles[i].z) discard;   // mine craters
   vec3 base = texture(uTex, vUV).rgb;
@@ -29,6 +56,16 @@ void main(){
   if (uMapOn > 0.0) {
     vec2 mu = vec2(dot(uMapA, vec3(vPos.xz, 1.0)), dot(uMapB, vec3(vPos.xz, 1.0)));
     if (mu.x > uMapFrame.x && mu.y > uMapFrame.y && mu.x < uMapFrame.z && mu.y < uMapFrame.w) base = mix(base, texture(uMap, mu).rgb, uMapOn);
+  }
+  // close-up detail, faded out as a pixel grows past a couple of metres
+  float mpp = length(fwidth(vPos.xz)), near = 1.0 - smoothstep(0.7, 2.6, mpp);
+  if (near > 0.0) {
+    vec4 aux = texture(uAux, vUV); vec3 b0 = base;
+    vec2 p = vPos.xz;
+    base *= 1.0 + (vnoise(p * 0.6) * 0.6 + vnoise(p * 2.1) * 0.4 - 0.5) * 0.18;
+    if (aux.g > 0.2) base = mix(base, crowns(base, p), smoothstep(0.2, 0.6, aux.g));
+    if (aux.r > 0.004) { base = holes(base, p, 6.0, aux.r, 0.6, 2.8, 0.0); base = holes(base, p, 17.0, aux.r * 0.25, 2.5, 5.5, 41.0); }
+    base = mix(b0, base, near);
   }
   float h = vPos.y / 10.0; float fw = fwidth(h);
   float c = 1.0 - smoothstep(0.0, 1.2, abs(fract(h + 0.5) - 0.5) / max(fw, 1e-4));
@@ -243,7 +280,7 @@ export class Renderer {
     if (!gl) throw new Error('This browser does not support WebGL2.');
     this.gl = gl;
     gl.getExtension('OES_texture_float_linear');
-    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour', 'uDetail', 'uMap', 'uDB', 'uDetailOn', 'uMapOn', 'uMapA', 'uMapB', 'uMapFrame', 'uHoles']);
+    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour', 'uDetail', 'uMap', 'uDB', 'uDetailOn', 'uMapOn', 'uMapA', 'uMapB', 'uMapFrame', 'uHoles', 'uAux']);
     this.pR = createProgram(gl, RIBBON_VS, RIBBON_FS); this.uR = uniforms(gl, this.pR, ['uVP', 'uCam', 'uPx', 'uWidth', 'uLift', 'uColor', 'uDash']);
     this.pB = createProgram(gl, BLOCK_VS, BLOCK_FS); this.uB = uniforms(gl, this.pB, ['uVP']);
     this.pF = createProgram(gl, FIG_VS, FIG_FS); this.uF = uniforms(gl, this.pF, ['uVP', 'uSwing', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen']);
@@ -255,6 +292,7 @@ export class Renderer {
     };
     this.buildTerrain();
     this.buildTexture();
+    this.buildTrenchMesh();
     this.buildRibbons();
     this.buildBlocks(units);
     this.dyn = this.makeBlockBuffer();
@@ -338,8 +376,8 @@ export class Renderer {
     polyM([...britBack, ...[...zoneBack].reverse()], true); g.clip();
     for (let k = 0; k < 160000; k++) {
       const x = rnd() * TEX, y = rnd() * TEX, c = rnd() < 0.6, r = 1 + rnd() * m(9);
-      if (o.fine || !vis(x, y, r)) continue;           // a close-up patch places its shell holes from the record instead
-      g.fillStyle = c ? 'rgba(120,100,70,0.35)' : 'rgba(215,205,175,0.3)';
+      if (!vis(x, y, r)) continue;                       // faint: up close the shell holes are drawn by the terrain shader
+      g.fillStyle = c ? 'rgba(120,100,70,0.2)' : 'rgba(215,205,175,0.16)';
       g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
     }
     g.restore();
@@ -365,7 +403,6 @@ export class Renderer {
         g.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, m(12 + rnd() * 14), m(10 + rnd() * 12));
       }
     }
-    if (o.fine) { this.paintFine(g, m, vis); return; }
     if (!o.trenches) return;
     // trenches: the traced German network, the British front and support, and schematic German lines where no
     // trench map has been traced. Fire trenches wider than communication trenches.
@@ -395,35 +432,21 @@ export class Renderer {
     return (this.trenches = out);
   }
 
-  /** craters for a patch, from the record of the bombardment: x, z, radius (m) triples; set by the app */
-  craterSource: ((box: number[]) => Float32Array) | null = null;
-  /** metre-scale extras for a close-up patch: grass, shell holes, tree crowns */
-  private paintFine(g: CanvasRenderingContext2D, m: (metres: number) => number, vis: (x: number, y: number, r: number) => boolean) {
-    let seed = 99; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const inv = g.getTransform().inverse(), a = inv.transformPoint(new DOMPoint(0, 0)), b = inv.transformPoint(new DOMPoint(g.canvas.width, g.canvas.height));
-    const X0 = a.x, Y0 = a.y, SX = b.x - a.x, SY = b.y - a.y;              // the patch in whole-front texture px
-    // grass and soil mottling
-    for (let k = 0; k < 220000; k++) { g.fillStyle = rnd() < 0.5 ? 'rgba(60,70,30,0.10)' : 'rgba(235,225,180,0.10)'; g.fillRect(X0 + rnd() * SX, Y0 + rnd() * SY, m(0.8 + rnd()), m(0.8 + rnd())); }
-    // shell holes where the record puts the bombardment
-    if (this.craterSource && this.patchBox) {
-      const C = this.craterSource(this.patchBox);
-      for (let i = 0; i < C.length; i += 3) {
-        const [x, y] = this.texPx(C[i], C[i + 1]), r = m(C[i + 2]);
-        if (!vis(x, y, r * 1.6)) continue;
-        g.fillStyle = 'rgba(205,195,165,0.4)'; g.beginPath(); g.arc(x, y, r * 1.55, 0, 6.283); g.fill();
-        g.fillStyle = 'rgba(92,78,58,0.55)'; g.beginPath(); g.arc(x + r * 0.12, y + r * 0.12, r, 0, 6.283); g.fill();
-      }
+  // ---------- aux map: where the ground was shelled, and where the woods are ----------
+  private aux: WebGLTexture | null = null;
+  /** shelled ground as polygons (local metres) with the chance of a shell hole per 6 m square */
+  setShelling(bands: { poly: P[]; p: number }[]) {
+    const N = TEX / 2, cv = document.createElement('canvas'); cv.width = cv.height = N;
+    const g = cv.getContext('2d')!; g.fillStyle = '#000'; g.fillRect(0, 0, N, N); g.scale(0.5, 0.5);
+    g.globalCompositeOperation = 'lighten';
+    for (const b of bands) {
+      g.beginPath(); b.poly.forEach((q, i) => { const [x, y] = this.texPx(q.x, q.z); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+      g.fillStyle = `rgb(${Math.round(Math.min(1, b.p) * 255)},0,0)`; g.fill();
     }
-    // tree crowns
-    for (const w of GEO.woods) {
-      const pp = w.poly.map(q => { const p = toXZ(q); return this.texPx(p.x, p.z); });
-      const wx = Math.min(...pp.map(p => p[0])), wy = Math.min(...pp.map(p => p[1])), wX = Math.max(...pp.map(p => p[0])) - wx, wY = Math.max(...pp.map(p => p[1])) - wy;
-      if (wx > X0 + SX || wy > Y0 + SY || wx + wX < X0 || wy + wY < Y0) continue;
-      g.save(); g.beginPath(); pp.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.clip();
-      const n = Math.min(60000, Math.round(wX * wY / (m(3.2) ** 2)));
-      for (let k = 0; k < n; k++) { const x = wx + rnd() * wX, y = wy + rnd() * wY, c = rnd() < 0.5, r = m(2 + rnd() * 3); if (!vis(x, y, r)) continue; g.fillStyle = c ? 'rgba(48,64,34,0.9)' : 'rgba(96,118,66,0.85)'; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill(); }
-      g.restore();
-    }
+    g.fillStyle = 'rgb(0,255,0)';
+    for (const w of GEO.woods) { g.beginPath(); w.poly.forEach((q, i) => { const p = toXZ(q), [x, y] = this.texPx(p.x, p.z); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); }
+    if (this.aux) this.gl.deleteTexture(this.aux);
+    this.aux = this.upload(cv);
   }
 
   // ---------- ribbons ----------
@@ -547,35 +570,7 @@ export class Renderer {
   /** a map image draped on the ground: rows a, b map (x, z, 1) to texture u, v; frame = [u0, v0, u1, v1] */
   setMap(src: TexImageSource, a: number[], b: number[], frame: number[]) { this.map = { tex: this.upload(src), a, b, frame }; }
 
-  // ---------- close-up: a sharp patch of ground round the camera, with trenches as shapes ----------
-  private patchBox: number[] | null = null;
-  private patchStill = 0; private lastTarget = [0, 0];
-  static readonly PATCH = 3200;           // metres across, painted at 4096 px (about 0.8 m per pixel)
-  static readonly PATCH_ON = 6500;        // camera distance below which the patch is used
-  private updatePatch(cam: Camera) {
-    const moved = Math.hypot(cam.tx - this.lastTarget[0], cam.tz - this.lastTarget[1]);
-    this.lastTarget = [cam.tx, cam.tz];
-    this.patchStill = moved < 2 ? this.patchStill + 1 : 0;
-    if (cam.gdist > Renderer.PATCH_ON) return;
-    const B = this.patchBox, H = Renderer.PATCH / 2;
-    const off = B ? Math.max(Math.abs(cam.tx - (B[0] + H)), Math.abs(cam.tz - (B[1] + H))) : Infinity;
-    // repaint once the camera has settled away from the patch centre (at once if there is no usable patch)
-    if (off > H * 0.85 || (off > H * 0.3 && this.patchStill > 10)) this.paintPatch(cam.tx, cam.tz);
-  }
-  /** milliseconds the last patch took to paint */
-  patchMs = 0;
-  paintPatch(cx: number, cz: number) {
-    const t0 = performance.now(), gl = this.gl, H = Renderer.PATCH / 2, size = matchMedia('(pointer: coarse)').matches ? 3072 : 4096;   // phones: about 1 m per pixel
-    const box = [cx - H, cz - H, cx + H, cz + H]; this.patchBox = box;
-    const cv = document.createElement('canvas'); cv.width = cv.height = size;
-    const g = cv.getContext('2d')!, [ax, ay] = this.texPx(box[0], box[1]), [bx, by] = this.texPx(box[2], box[3]);
-    g.setTransform(size / (bx - ax), 0, 0, size / (by - ay), -ax * size / (bx - ax), -ay * size / (by - ay));
-    this.paintMap(g, { trenches: false, fine: true });
-    if (this.detail) gl.deleteTexture(this.detail.tex);
-    this.detail = { tex: this.upload(cv), box };
-    this.buildTrenchMesh(box);
-    this.patchMs = performance.now() - t0;
-  }
+  // ---------- trenches as shapes: the whole front, built once ----------
   private stripMesh(old: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null, v: number[]) {
     const gl = this.gl;
     if (!this.pTr) { this.pTr = createProgram(gl, TRENCH_VS, TRENCH_FS); this.uTr = uniforms(gl, this.pTr, ['uVP', 'uCam', 'uPx', 'uLight', 'uFog', 'uFogDen', 'uAlpha', 'uMinW', 'uLift', 'uHoles']); }
@@ -602,9 +597,8 @@ export class Renderer {
       vert(A, ya, -1, -1); vert(A, ya, 1, -1); vert(B, yb, -1, 1); vert(B, yb, -1, 1); vert(A, ya, 1, -1); vert(B, yb, 1, 1);
     }
   }
-  private buildTrenchMesh(box: number[]) {
-    const near = (r: Run) => r.p.some(p => p.x > box[0] - 50 && p.x < box[2] + 50 && p.z > box[1] - 50 && p.z < box[3] + 50);
-    const runs = this.trenchSet().filter(near), fire = runs.filter(r => r.kind === FIRE).map(styled), comm = runs.filter(r => r.kind !== FIRE).map(styled);
+  private buildTrenchMesh(box?: number[]) {
+    const runs = this.trenchSet(), fire = runs.filter(r => r.kind === FIRE).map(styled), comm = runs.filter(r => r.kind !== FIRE).map(styled);
     const v: number[] = [];
     this.strips(v, comm, 2.3, [0.72, 0.68, 0.58, 1], box); this.strips(v, fire, 3.4, [0.74, 0.7, 0.6, 1], box);    // chalk spoil
     this.strips(v, comm, 0.8, [0.25, 0.2, 0.16, 1], box); this.strips(v, fire, 1.1, [0.22, 0.17, 0.13, 1], box);   // the cut
@@ -738,10 +732,9 @@ export class Renderer {
     gl.uniform3f(this.uT.uCam, cam.ex, cam.ey, cam.ez); gl.uniform3fv(this.uT.uFog, light.fog);
     gl.uniform1f(this.uT.uFogDen, 0.6 / (cam.dist * 3 + 8000)); gl.uniform1f(this.uT.uContour, 1);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex); gl.uniform1i(this.uT.uTex, 0);
-    this.updatePatch(cam);
-    const dOn = this.detail ? clamp((Renderer.PATCH_ON - cam.dist) / 2500, 0, 1) : 0;
-    gl.uniform1f(this.uT.uDetailOn, dOn); gl.uniform1f(this.uT.uMapOn, this.map ? this.mapOpacity : 0);
-    if (this.detail) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.detail.tex); gl.uniform1i(this.uT.uDetail, 1); gl.uniform4fv(this.uT.uDB, this.detail.box); }
+    const dOn = clamp((16000 - cam.dist) / 8000, 0, 1);         // trench shapes fade out only when the whole front is in view
+    gl.uniform1f(this.uT.uDetailOn, 0); gl.uniform1f(this.uT.uMapOn, this.map ? this.mapOpacity : 0);
+    if (this.aux) { gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, this.aux); gl.uniform1i(this.uT.uAux, 3); }
     if (this.map) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.map.tex); gl.uniform1i(this.uT.uMap, 2); gl.uniform3fv(this.uT.uMapA, this.map.a); gl.uniform3fv(this.uT.uMapB, this.map.b); gl.uniform4fv(this.uT.uMapFrame, this.map.frame); }
     gl.activeTexture(gl.TEXTURE0);
     const holes = new Float32Array(32);
