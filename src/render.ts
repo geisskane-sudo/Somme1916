@@ -107,6 +107,26 @@ void main(){
   float edge = 1.0 - min(smoothstep(0.0, fw.x, e.x), smoothstep(0.0, fw.y, e.y));
   o = vec4(mix(vCol.rgb, vCol.rgb * 0.35, edge), vCol.a);
 }`;
+// trenches as geometry: world-width strips on the ground, never thinner than about a pixel
+const TRENCH_VS = `#version 300 es
+layout(location=0) in vec3 aPos; layout(location=1) in vec2 aN; layout(location=2) in float aSide; layout(location=3) in float aHalf; layout(location=4) in vec4 aCol; layout(location=5) in float aEnd;
+uniform mat4 uVP; uniform vec3 uCam; uniform float uPx; out vec4 vCol; out float vSide; out vec3 vW;
+void main(){
+  float m = length(aPos - uCam) * uPx;
+  float h = max(aHalf, 0.55 * m);
+  vec3 p = aPos + (vec3(aN.x, 0.0, aN.y) * aSide + vec3(aN.y, 0.0, -aN.x) * aEnd) * h; p.y += 0.4 + m * 0.6;
+  vCol = aCol; vSide = aSide; vW = p;
+  float top = aHalf < 2.0 ? 1.0 : 0.0; p.y += top * (0.2 + m * 0.2);
+  gl_Position = uVP * vec4(p, 1.0); gl_Position.z -= (0.0012 + top * 0.0004) * gl_Position.w;
+}`;
+const TRENCH_FS = `#version 300 es
+precision highp float;
+in vec4 vCol; in float vSide; in vec3 vW; uniform vec3 uLight, uCam, uFog; uniform float uFogDen, uAlpha; out vec4 o;
+void main(){
+  float e = 1.0 - smoothstep(0.75, 1.0, abs(vSide));
+  vec3 c = mix(vCol.rgb * uLight, uFog, 1.0 - exp(-length(vW - uCam) * uFogDen));
+  o = vec4(c, vCol.a * uAlpha * (0.5 + 0.5 * e));
+}`;
 const POINT_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in float aSize; layout(location=2) in vec4 aCol;
 uniform mat4 uVP; uniform vec3 uCam; uniform float uPx; out vec4 vCol;
@@ -185,6 +205,10 @@ export class Renderer {
   private terrain!: { vao: WebGLVertexArrayObject; n: number; type: number };
   private tex!: WebGLTexture;
   private detail: { tex: WebGLTexture; box: number[] } | null = null;
+  private pTr!: WebGLProgram; private uTr!: Record<string, WebGLUniformLocation | null>;
+  private trMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
+  /** close-up trial (Thiepval only): 0 now, 1 trench geometry, 2 sharp ground patch, 3 both */
+  closeUp = 0;
   private map: { tex: WebGLTexture; a: number[]; b: number[]; frame: number[] } | null = null;
   /** 0..1: how strongly the 1916 map is shown on the ground */
   mapOpacity = 0;
@@ -257,9 +281,19 @@ export class Renderer {
 
   // ---------- painted map texture ----------
   private buildTexture() {
-    const d = this.dem;
     const cv = document.createElement('canvas'); cv.width = cv.height = TEX;
-    const g = cv.getContext('2d')!;
+    this.paintMap(cv.getContext('2d')!, { trenches: true, fine: false });
+    this.tex = this.upload(cv);
+  }
+  /** pixel position on the whole-front texture of a local point */
+  texPx(x: number, z: number): [number, number] {
+    const d = this.dem, ll = toLL(x, z);
+    return [(ll[1] - d.west) / (d.cols * d.cell) * TEX, (d.north - ll[0]) / (d.rows * d.cell) * TEX];
+  }
+  /** paint the map in whole-front texture pixel space (the caller's canvas transform maps it to its own canvas).
+   *  trenches: paint the trench systems; fine: metre-scale trenches, shell holes and trees for a detail patch */
+  private paintMap(g: CanvasRenderingContext2D, o: { trenches: boolean; fine: boolean }) {
+    const d = this.dem;
     const north = d.north, west = d.west, latSpan = d.rows * d.cell, lonSpan = d.cols * d.cell;
     const P = (ll: LL): [number, number] => [(ll[1] - west) / lonSpan * TEX, (north - ll[0]) / latSpan * TEX];
     const Pm = (p: P) => P(toLL(p.x, p.z));
@@ -315,8 +349,8 @@ export class Renderer {
     // schematic trench systems, used only where no trench map has been traced (drawn on their own layer,
     // then cut away wherever a traced sheet covers the ground)
     const sheetsC = Object.values(traced.sheets as unknown as Record<string, { corners: [number, number][] }>).map(s => s.corners);
-    const main = g, layer = document.createElement('canvas'); layer.width = layer.height = TEX;
-    const lg = layer.getContext('2d')!; lg.lineCap = 'round'; lg.lineJoin = 'round';
+    const main = g, layer = document.createElement('canvas'); layer.width = g.canvas.width; layer.height = g.canvas.height;
+    const lg = layer.getContext('2d')!; lg.setTransform(g.getTransform()); lg.lineCap = 'round'; lg.lineJoin = 'round';
     const trench = (p: P[], col: string, w: number, zig: boolean) => {
       const q = resample(p, 18);
       lg.beginPath();
@@ -336,7 +370,9 @@ export class Renderer {
     trench(offsetAway(this.lines.second, 130, B), '#55463a', 1.6, true);
     lg.globalCompositeOperation = 'destination-out'; lg.fillStyle = '#000';
     for (const c of sheetsC) { lg.beginPath(); c.forEach(([x, z], i) => { const [u, v] = Pm({ x, z }); i ? lg.lineTo(u, v) : lg.moveTo(u, v); }); lg.closePath(); lg.fill(); }
-    main.drawImage(layer, 0, 0);
+    main.save(); main.resetTransform(); main.drawImage(layer, 0, 0); main.restore();
+    if (o.fine) { if (o.trenches) this.paintFine(g, m, true); else this.paintFine(g, m, false); return; }
+    if (!o.trenches) return;
     // the German trench network traced from the 1916 trench maps
     g.lineCap = 'round'; g.lineJoin = 'round';
     const tl = (traced.lines as unknown as { p: [number, number][] }[]);
@@ -348,16 +384,61 @@ export class Renderer {
     const bt = (p: P[], col: string, w: number) => { const q = resample(p, 18); g.beginPath(); q.forEach((s, i) => { let [x, y] = Pm(s); if (i > 0 && i < q.length - 1) { const a = q[i - 1], b = q[i + 1]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const o = (i % 2 ? 1 : -1) * m(6); x += nx / L * o; y += nz / L * o; } i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = 'rgba(226,220,200,0.85)'; g.lineWidth = w + 3; g.stroke(); g.strokeStyle = col; g.lineWidth = w; g.stroke(); };
     bt(B, '#4a3a2e', 2.6);
     bt(offsetAway(B, 160, G), '#55463a', 1.8);
+  }
 
-    const gl = this.gl;
-    this.tex = gl.createTexture()!;
-    gl.bindTexture(gl.TEXTURE_2D, this.tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const ext = gl.getExtension('EXT_texture_filter_anisotropic');
-    if (ext) gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+  /** metre-scale extras for a detail patch: shell holes, tree crowns, and (optionally) traversed trenches */
+  private paintFine(g: CanvasRenderingContext2D, m: (metres: number) => number, trenches: boolean) {
+    let seed = 99; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const T = g.getTransform(), inv = T.inverse(), W = g.canvas.width;
+    const a = inv.transformPoint(new DOMPoint(0, 0)), b = inv.transformPoint(new DOMPoint(W, g.canvas.height));
+    const X0 = a.x, Y0 = a.y, SX = b.x - a.x, SY = b.y - a.y;              // the patch in whole-front texture px
+    const Pm = (p: { x: number; z: number }) => this.texPx(p.x, p.z);
+    const B = this.lines.british, G = this.lines.german;
+    // grass and soil mottling
+    for (let k = 0; k < 220000; k++) { g.fillStyle = rnd() < 0.5 ? 'rgba(60,70,30,0.10)' : 'rgba(235,225,180,0.10)'; g.fillRect(X0 + rnd() * SX, Y0 + rnd() * SY, m(0.8 + rnd()), m(0.8 + rnd())); }
+    // shell holes in no man's land and the German trench zone
+    const zoneBack = offsetAway(resample(G, 40), 650, B), britBack = offsetAway(resample(B, 40), 60, G);
+    g.save(); g.beginPath(); [...britBack, ...[...zoneBack].reverse()].forEach((q, i) => { const [x, y] = Pm(q); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.clip();
+    for (let k = 0; k < 45000; k++) {
+      const x = X0 + rnd() * SX, y = Y0 + rnd() * SY, r = m(0.5 + rnd() * rnd() * rnd() * 4);
+      g.fillStyle = 'rgba(200,190,160,0.35)'; g.beginPath(); g.arc(x, y, r * 1.5, 0, 6.283); g.fill();
+      g.fillStyle = 'rgba(95,80,60,0.45)'; g.beginPath(); g.arc(x + r * 0.15, y + r * 0.15, r, 0, 6.283); g.fill();
+    }
+    g.restore();
+    // tree crowns
+    for (const w of GEO.woods) {
+      g.save(); g.beginPath(); w.poly.forEach((q, i) => { const [x, y] = this.texPx(toXZ(q).x, toXZ(q).z); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.clip();
+      const pp = w.poly.map(q => this.texPx(toXZ(q).x, toXZ(q).z)), wx = Math.min(...pp.map(p => p[0])), wy = Math.min(...pp.map(p => p[1]));
+      const wX = Math.max(...pp.map(p => p[0])) - wx, wY = Math.max(...pp.map(p => p[1])) - wy;
+      if (wx > X0 + SX || wy > Y0 + SY || wx + wX < X0 || wy + wY < Y0) { g.restore(); continue; }
+      for (let k = 0; k < 40000; k++) { const x = wx + rnd() * wX, y = wy + rnd() * wY; g.fillStyle = rnd() < 0.5 ? 'rgba(48,64,34,0.9)' : 'rgba(96,118,66,0.85)'; g.beginPath(); g.arc(x, y, m(2 + rnd() * 3), 0, 6.283); g.fill(); }
+      g.restore();
+    }
+    if (!trenches) return;
+    // traversed trenches at their real width: chalk spoil either side of a dark cut
+    const lines = this.trenchLines();
+    const path = () => { g.beginPath(); for (const q of lines) q.forEach((p, i) => { const [x, y] = Pm(p); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
+    g.lineCap = 'butt'; g.lineJoin = 'miter';
+    path(); g.strokeStyle = 'rgba(200,192,166,0.95)'; g.lineWidth = m(6.8); g.stroke();
+    path(); g.strokeStyle = '#3e3026'; g.lineWidth = m(2.2); g.stroke();
+  }
+
+  /** trench centrelines (local metres) with traverses: German lines from the trench-map tracing, British front and support */
+  trenchLines(box?: number[]) {
+    const raw: P[][] = (traced.lines as unknown as { p: [number, number][] }[]).map(l => l.p.map(([x, z]) => ({ x, z })));
+    raw.push(this.lines.british, offsetAway(this.lines.british, 160, this.lines.german));
+    const out: P[][] = [];
+    for (const r of raw) {
+      if (box && !r.some(p => p.x > box[0] && p.x < box[2] && p.z > box[1] && p.z < box[3])) continue;
+      const q = resample(r, 4.5); if (q.length < 2) continue;
+      // fire-bay traverses: a square wave of 1.4 m either side, 9 m bays
+      out.push(q.map((s, i) => {
+        const a = q[Math.max(0, i - 1)], b = q[Math.min(q.length - 1, i + 1)];
+        const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1, o = (Math.floor(i / 2) % 2 ? 1.4 : -1.4) * (i && i < q.length - 1 ? 1 : 0);
+        return { x: s.x + nx / L * o, z: s.z + nz / L * o };
+      }));
+    }
+    return out;
   }
 
   // ---------- ribbons ----------
@@ -481,6 +562,43 @@ export class Renderer {
   /** a map image draped on the ground: rows a, b map (x, z, 1) to texture u, v; frame = [u0, v0, u1, v1] */
   setMap(src: TexImageSource, a: number[], b: number[], frame: number[]) { this.map = { tex: this.upload(src), a, b, frame }; }
 
+  // ---------- close-up trial ----------
+  static readonly CLOSE_BOX = [-4300, -1900, -1100, 1300];
+  setCloseUp(mode: number) {
+    const gl = this.gl; this.closeUp = mode;
+    if (this.detail) { gl.deleteTexture(this.detail.tex); this.detail = null; }
+    if (this.trMesh) { gl.deleteBuffer(this.trMesh.buf); gl.deleteVertexArray(this.trMesh.vao); this.trMesh = null; }
+    if (!mode) return;
+    const box = Renderer.CLOSE_BOX, size = mode === 1 ? 1024 : 4096;
+    const cv = document.createElement('canvas'); cv.width = cv.height = size;
+    const g = cv.getContext('2d')!, [ax, ay] = this.texPx(box[0], box[1]), [bx, by] = this.texPx(box[2], box[3]);
+    g.setTransform(size / (bx - ax), 0, 0, size / (by - ay), -ax * size / (bx - ax), -ay * size / (by - ay));
+    this.paintMap(g, { trenches: mode === 2, fine: mode !== 1 });
+    this.detail = { tex: this.upload(cv), box };
+    if (mode === 1 || mode === 3) this.buildTrenchMesh(box);
+  }
+  private buildTrenchMesh(box: number[]) {
+    const gl = this.gl;
+    if (!this.pTr) { this.pTr = createProgram(gl, TRENCH_VS, TRENCH_FS); this.uTr = uniforms(gl, this.pTr, ['uVP', 'uCam', 'uPx', 'uLight', 'uFog', 'uFogDen', 'uAlpha']); }
+    const lines = this.trenchLines(box), v: number[] = [];
+    // each straight piece is its own quad, lengthened by its half-width at both ends so the traverses join square
+    const pass = (half: number, col: number[]) => {
+      for (const q of lines) for (let i = 1; i < q.length; i++) {
+        const A = q[i - 1], B = q[i], dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+        const ya = this.dem.height(A.x, A.z), yb = this.dem.height(B.x, B.z);
+        const vert = (P: P, y: number, side: number, end: number) => v.push(P.x, y, P.z, nx, nz, side, half, ...col, end);
+        vert(A, ya, -1, -1); vert(A, ya, 1, -1); vert(B, yb, -1, 1); vert(B, yb, -1, 1); vert(A, ya, 1, -1); vert(B, yb, 1, 1);
+      }
+    };
+    pass(3.4, [0.74, 0.7, 0.6, 1]);       // chalk spoil
+    pass(1.1, [0.22, 0.17, 0.13, 1]);     // the cut
+    const vao = gl.createVertexArray()!, buf = gl.createBuffer()!;
+    gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+    for (const [loc, size, off] of [[0, 3, 0], [1, 2, 3], [2, 1, 5], [3, 1, 6], [4, 4, 7], [5, 1, 11]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 48, off * 4); }
+    gl.bindVertexArray(null);
+    this.trMesh = { vao, buf, n: v.length / 12 };
+  }
+
   // ---------- per-frame shapes from the battle ----------
   /** start a new frame's worth of flat quads */
   clearFlat() { this.flatN = 0; }
@@ -549,6 +667,12 @@ export class Renderer {
     gl.bindVertexArray(this.terrain.vao); gl.drawElements(gl.TRIANGLES, this.terrain.n, this.terrain.type, 0);
     gl.disable(gl.CULL_FACE);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    if (this.trMesh && dOn > 0) {
+      gl.useProgram(this.pTr); gl.uniformMatrix4fv(this.uTr.uVP, false, cam.vp); gl.uniform3f(this.uTr.uCam, cam.ex, cam.ey, cam.ez); gl.uniform1f(this.uTr.uPx, cam.px);
+      const sy = Math.max(light.sun[1], 0); gl.uniform3f(this.uTr.uLight, light.sunCol[0] * sy + light.sky[0], light.sunCol[1] * sy + light.sky[1], light.sunCol[2] * sy + light.sky[2]);
+      gl.uniform3fv(this.uTr.uFog, light.fog); gl.uniform1f(this.uTr.uFogDen, 0.6 / (cam.dist * 3 + 8000)); gl.uniform1f(this.uTr.uAlpha, dOn);
+      gl.bindVertexArray(this.trMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, this.trMesh.n);
+    }
     // blocks and crater decals
     gl.useProgram(this.pB); gl.uniformMatrix4fv(this.uB.uVP, false, cam.vp);
     if (decals.length) { gl.bindVertexArray(this.dyn.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.dyn.buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(decals), gl.DYNAMIC_DRAW); gl.drawArrays(gl.TRIANGLES, 0, decals.length / 10); }

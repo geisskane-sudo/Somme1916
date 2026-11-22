@@ -294,6 +294,12 @@ function boot() {
     else if (v) { const c = corpsByName.get(v)!; fly(c.x, c.z, 6500); showCorps(c.name); }
   };
   $('b-help').onclick = () => $('help').classList.toggle('hidden');
+  { // close-up trial, Thiepval only
+    const sel = document.createElement('select'); sel.id = 'closeup'; sel.title = 'Close-up trial (Thiepval only)';
+    ['Close-up: now', 'Close-up: 1 trench shapes', 'Close-up: 2 sharp ground', 'Close-up: 1 + 2'].forEach((t, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = t; sel.appendChild(o); });
+    $('b-map').after(sel);
+    sel.onchange = () => { r.setCloseUp(+sel.value); if (+sel.value && cam.dist > 3000) fly(-2600, 300, 1400); };
+  }
   $('b-map').onclick = () => {
     r.mapOpacity = r.mapOpacity > 0 ? 0 : 0.85; $('b-map').classList.toggle('on', r.mapOpacity > 0);
     if (r.mapOpacity > 0) { if (!sheetReady) toast('The 1916 map is still loading'); fly(-2350, 150, 2600); toast('1:5000 trench map, Schwaben Redoubt and Thiepval (trenches corrected to 20 October 1916)'); }
