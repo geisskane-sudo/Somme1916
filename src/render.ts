@@ -15,11 +15,19 @@ const TEX = 4096;
 const TERRAIN_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aN; layout(location=2) in vec2 aUV;
 uniform mat4 uVP; out vec3 vPos; out vec3 vN; out vec2 vUV;
-void main(){ vPos=aPos; vN=aN; vUV=aUV; gl_Position=uVP*vec4(aPos,1.0); }`;
+// fine terrain blocks: aPos is (height, slope x, slope z) and the grid position comes from the vertex number
+uniform float uFineOn; uniform vec4 uBlock; uniform vec4 uUV;   // block: x0, z0, step, points per row
+void main(){
+  if (uFineOn > 0.5) {
+    int N = int(uBlock.w); float x = uBlock.x + float(gl_VertexID % N) * uBlock.z, z = uBlock.y + float(gl_VertexID / N) * uBlock.z;
+    vPos = vec3(x, aPos.x, z); vN = normalize(vec3(-aPos.y, 1.0, -aPos.z)); vUV = vec2(x * uUV.x + uUV.y, z * uUV.z + uUV.w);
+  } else { vPos = aPos; vN = aN; vUV = aUV; }
+  gl_Position = uVP * vec4(vPos, 1.0);
+}`;
 const TERRAIN_FS = `#version 300 es
 precision highp float;
 in vec3 vPos; in vec3 vN; in vec2 vUV; uniform sampler2D uTex; uniform vec3 uSun, uSunCol, uSky, uCam, uFog; uniform float uFogDen, uContour;
-uniform sampler2D uDetail, uMap, uAux; uniform vec4 uDB; uniform vec4 uHoles[8]; uniform vec4 uFineBox; uniform float uDetailOn, uMapOn; uniform vec3 uMapA, uMapB; uniform vec4 uMapFrame;
+uniform sampler2D uDetail, uMap, uAux, uFineMask; uniform vec4 uDB; uniform vec4 uHoles[8]; uniform vec4 uFineGrid; uniform float uDetailOn, uMapOn; uniform vec3 uMapA, uMapB; uniform vec4 uMapFrame;
 out vec4 o;
 // close-up detail drawn per pixel, so it is sharp at any zoom: grass, shell holes where the aux map
 // says the ground was shelled (red channel: chance of a hole per 6 m square), tree crowns in woods (green)
@@ -50,7 +58,11 @@ vec3 crowns(vec3 base, vec2 p) {
 }
 void main(){
   for (int i = 0; i < 8; i++) if (uHoles[i].w > 0.0 && distance(vPos.xz, uHoles[i].xy) < uHoles[i].z) discard;   // mine craters
-  if (vPos.x > uFineBox.x && vPos.x < uFineBox.z && vPos.z > uFineBox.y && vPos.z < uFineBox.w) discard;          // drawn by the fine mesh
+  if (uFineGrid.w > 0.0) {                       // whole-front mesh: cut away where a fine block is drawn (overlapping 4 m at its outer edges)
+    vec2 sz = vec2(textureSize(uFineMask, 0)) * uFineGrid.z, q = (vPos.xz - uFineGrid.xy);
+    float m = texture(uFineMask, (q + vec2(4, 4)) / sz).r * texture(uFineMask, (q + vec2(-4, 4)) / sz).r * texture(uFineMask, (q + vec2(4, -4)) / sz).r * texture(uFineMask, (q + vec2(-4, -4)) / sz).r;
+    if (m > 0.5) discard;
+  }
   vec3 base = texture(uTex, vUV).rgb;
   if (uDetailOn > 0.0) {
     vec2 du = (vPos.xz - uDB.xy) / (uDB.zw - uDB.xy);
@@ -297,7 +309,7 @@ export class Renderer {
     if (!gl) throw new Error('This browser does not support WebGL2.');
     this.gl = gl;
     gl.getExtension('OES_texture_float_linear');
-    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour', 'uDetail', 'uMap', 'uDB', 'uDetailOn', 'uMapOn', 'uMapA', 'uMapB', 'uMapFrame', 'uHoles', 'uAux', 'uFineBox']);
+    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour', 'uDetail', 'uMap', 'uDB', 'uDetailOn', 'uMapOn', 'uMapA', 'uMapB', 'uMapFrame', 'uHoles', 'uAux', 'uFineMask', 'uFineGrid', 'uFineOn', 'uBlock', 'uUV']);
     this.pR = createProgram(gl, RIBBON_VS, RIBBON_FS); this.uR = uniforms(gl, this.pR, ['uVP', 'uCam', 'uPx', 'uWidth', 'uLift', 'uColor', 'uDash']);
     this.pB = createProgram(gl, BLOCK_VS, BLOCK_FS); this.uB = uniforms(gl, this.pB, ['uVP']);
     this.pF = createProgram(gl, FIG_VS, FIG_FS); this.uF = uniforms(gl, this.pF, ['uVP', 'uSwing', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen']);
@@ -349,36 +361,42 @@ export class Renderer {
     this.terrain = { vao, n: idx.length, type: gl.UNSIGNED_INT };
   }
 
-  /** the 5 m terrain over part of the front, same vertex layout as the whole-front mesh, cut into 1 km blocks */
-  private fineMesh: { vao: WebGLVertexArrayObject; parts: { first: number; n: number; box: number[] }[] } | null = null;
+  /** the 5 m terrain blocks: one small vertex buffer each (height and slope per point), one shared index buffer */
+  private fineMesh: { blocks: { vao: WebGLVertexArrayObject; i: number; j: number; box: number[] }[]; n: number; mask: WebGLTexture; nbx: number; nbz: number } | null = null;
   private buildFineTerrain() {
-    const gl = this.gl, d = this.dem, F = d.fine, NX = F.nx, NZ = F.nz, S = F.step;
-    if (!F.h.length) return;
-    const W = d.cols * d.cell, H = d.rows * d.cell;
-    const v = new Float32Array(NX * NZ * 8);
-    for (let r = 0; r < NZ; r++) for (let c = 0; c < NX; c++) {
-      const x = F.x0 + c * S, z = F.z0 + r * S, k = r * NX + c, h = F.h[k];
-      const hl = F.h[r * NX + Math.max(0, c - 1)], hr = F.h[r * NX + Math.min(NX - 1, c + 1)], hu = F.h[Math.max(0, r - 1) * NX + c], hd = F.h[Math.min(NZ - 1, r + 1) * NX + c];
-      let nx = -(hr - hl) / (2 * S), nz = -(hd - hu) / (2 * S), ny = 1; const L = Math.hypot(nx, ny, nz); nx /= L; ny /= L; nz /= L;
-      const ll = toLL(x, z);
-      v.set([x, h, z, nx, ny, nz, (ll[1] - d.west) / W, (d.north - ll[0]) / H], k * 8);
-    }
-    // indices grouped into 1 km blocks so only the blocks in view are drawn
-    const B = Math.round(1000 / S), parts: { first: number; n: number; box: number[] }[] = [], idx: number[] = [];
-    for (let br = 0; br < NZ - 1; br += B) for (let bc = 0; bc < NX - 1; bc += B) {
-      const first = idx.length; let y0 = Infinity, y1 = -Infinity;
-      for (let r = br; r < Math.min(br + B, NZ - 1); r++) for (let c = bc; c < Math.min(bc + B, NX - 1); c++) {
-        const a = r * NX + c, b = a + 1, e = a + NX, f = e + 1; idx.push(a, e, b, b, e, f);
-        const hh = F.h[a]; if (hh < y0) y0 = hh; if (hh > y1) y1 = hh;
+    const gl = this.gl, F = this.dem.fine, N = F.n + 1, S = F.step;
+    if (!F.h.size) return;
+    const idx = new Uint32Array(F.n * F.n * 6); let q = 0;
+    for (let r = 0; r < F.n; r++) for (let c = 0; c < F.n; c++) { const a = r * N + c, b = a + 1, e = a + N, f = e + 1; idx[q++] = a; idx[q++] = e; idx[q++] = b; idx[q++] = b; idx[q++] = e; idx[q++] = f; }
+    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+    const blocks: { vao: WebGLVertexArrayObject; i: number; j: number; box: number[] }[] = [];
+    let nbx = 0, nbz = 0;
+    for (const [key, h] of F.h) {
+      const [i, j] = key.split(',').map(Number); nbx = Math.max(nbx, i + 1); nbz = Math.max(nbz, j + 1);
+      const v = new Float32Array(N * N * 3); let y0 = Infinity, y1 = -Infinity;
+      const H = (x: number, z: number) => {                          // height at a grid point, crossing into neighbouring blocks for slopes
+        if (x >= 0 && x < N && z >= 0 && z < N) return h[z * N + x];
+        return this.dem.height(F.x0 + i * F.block + x * S, F.z0 + j * F.block + z * S);
+      };
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        const y = h[r * N + c]; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        v.set([y, (H(c + 1, r) - H(c - 1, r)) / (2 * S), (H(c, r + 1) - H(c, r - 1)) / (2 * S)], (r * N + c) * 3);
       }
-      parts.push({ first, n: idx.length - first, box: [F.x0 + bc * S, y0 - 5, F.z0 + br * S, F.x0 + Math.min(bc + B, NX - 1) * S, y1 + 5, F.z0 + Math.min(br + B, NZ - 1) * S] });
+      const vao = gl.createVertexArray()!; gl.bindVertexArray(vao);
+      const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, v, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+      gl.bindVertexArray(null);
+      const x0 = F.x0 + i * F.block, z0 = F.z0 + j * F.block;
+      blocks.push({ vao, i, j, box: [x0, y0 - 5, z0, x0 + F.block, y1 + 5, z0 + F.block] });
     }
-    const vao = gl.createVertexArray()!; gl.bindVertexArray(vao);
-    const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, v, gl.STATIC_DRAW);
-    for (const [loc, size, off] of [[0, 3, 0], [1, 3, 3], [2, 2, 6]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 32, off * 4); }
-    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(idx), gl.STATIC_DRAW);
-    gl.bindVertexArray(null);
-    this.fineMesh = { vao, parts };
+    // which blocks are fine, for the whole-front mesh to cut away
+    const m = new Uint8Array(nbx * nbz); for (const b of blocks) m[b.j * nbx + b.i] = 255;
+    const mask = gl.createTexture()!; gl.bindTexture(gl.TEXTURE_2D, mask); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, nbx, nbz, 0, gl.RED, gl.UNSIGNED_BYTE, m);
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    this.fineMesh = { blocks, n: idx.length, mask, nbx, nbz };
   }
 
   // ---------- painted map texture ----------
@@ -1001,19 +1019,27 @@ export class Renderer {
     const holes = new Float32Array(32);
     this.craterMesh?.parts.forEach((p, i) => { if (i < 8 && this.craterOn[i]) holes.set(p.hole, i * 4); });
     gl.uniform4fv(this.uT.uHoles, holes);
-    const fb = this.fineMesh ? this.dem.fineBox() : [0, 0, 0, 0];
-    gl.uniform4f(this.uT.uFineBox, fb[0] + 1, fb[1] + 1, fb[2] - 1, fb[3] - 1);
+    const FM = this.fineMesh, F = this.dem.fine;
+    gl.uniform1f(this.uT.uFineOn, 0);
+    if (FM) { gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, FM.mask); gl.uniform1i(this.uT.uFineMask, 4); gl.activeTexture(gl.TEXTURE0); gl.uniform4f(this.uT.uFineGrid, F.x0, F.z0, F.block, 1); }
+    else gl.uniform4f(this.uT.uFineGrid, 0, 0, 1, 0);
     gl.bindVertexArray(this.terrain.vao); gl.drawElements(gl.TRIANGLES, this.terrain.n, this.terrain.type, 0);
-    if (this.fineMesh) {
-      gl.uniform4f(this.uT.uFineBox, 0, 0, 0, 0);
-      gl.bindVertexArray(this.fineMesh.vao);
+    if (FM) {
+      const d = this.dem, KXm = toXZ([0, 1]).x - toXZ([0, 0]).x, KZm = toXZ([0, 0]).z - toXZ([1, 0]).z;      // metres per degree
+      const W = d.cols * d.cell, H = d.rows * d.cell, ll0 = toLL(0, 0);
+      // u = (lon - west) / W with lon = lon0 + x / KX; v = (north - lat) / H with lat = lat0 - z / KZ
+      gl.uniform4f(this.uT.uUV, 1 / (KXm * W), (ll0[1] - d.west) / W, 1 / (KZm * H), (d.north - ll0[0]) / H);
+      gl.uniform1f(this.uT.uFineOn, 1); gl.uniform4f(this.uT.uFineGrid, 0, 0, 1, 0);
       const vp = cam.vp, r = (i: number) => [vp[i], vp[4 + i], vp[8 + i], vp[12 + i]], R0 = r(0), R1 = r(1), R2 = r(2), R3 = r(3);
       const planes = [R3.map((x, i) => x + R0[i]), R3.map((x, i) => x - R0[i]), R3.map((x, i) => x + R1[i]), R3.map((x, i) => x - R1[i]), R3.map((x, i) => x + R2[i]), R3.map((x, i) => x - R2[i])];
-      for (const p of this.fineMesh.parts) {
-        const b = p.box; let vis = true;
-        for (const P of planes) { const x = P[0] >= 0 ? b[3] : b[0], y = P[1] >= 0 ? b[4] : b[1], z = P[2] >= 0 ? b[5] : b[2]; if (P[0] * x + P[1] * y + P[2] * z + P[3] < 0) { vis = false; break; } }
-        if (vis) gl.drawElements(gl.TRIANGLES, p.n, gl.UNSIGNED_INT, p.first * 4);
+      for (const b of FM.blocks) {
+        const bx = b.box; let vis = true;
+        for (const P of planes) { const x = P[0] >= 0 ? bx[3] : bx[0], y = P[1] >= 0 ? bx[4] : bx[1], z = P[2] >= 0 ? bx[5] : bx[2]; if (P[0] * x + P[1] * y + P[2] * z + P[3] < 0) { vis = false; break; } }
+        if (!vis) continue;
+        gl.bindVertexArray(b.vao); gl.uniform4f(this.uT.uBlock, F.x0 + b.i * F.block, F.z0 + b.j * F.block, F.step, F.n + 1);
+        gl.drawElements(gl.TRIANGLES, FM.n, gl.UNSIGNED_INT, 0);
       }
+      gl.uniform1f(this.uT.uFineOn, 0);
     }
     if (this.scenery?.n && cam.dist < 14000) {
       gl.disable(gl.CULL_FACE);

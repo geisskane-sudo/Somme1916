@@ -12,8 +12,10 @@ const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const T0 = 6 * 60, T1 = 22 * 60 + 30, ZERO = 7 * 60 + 30;
 
-function boot() {
+async function boot() {
   const dem = new Dem();
+  // the 5 m terrain along the front (a separate file; the map still works without it)
+  try { const res = await fetch('terrain.bin'); if (res.ok) dem.loadFine(await res.arrayBuffer()); } catch (e) { console.warn('no fine terrain', e); }
   const { units, divs, corps } = buildUnits();
   const canvas = $('gl') as HTMLCanvasElement;
   // edge smoothing setting: kept in the address (#smooth=light) and, where allowed, in local storage
@@ -364,4 +366,4 @@ function boot() {
 }
 
 window.addEventListener('error', e => { const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Error: ' + e.message; });
-setTimeout(() => { try { boot(); } catch (err) { $('loading').classList.add('hidden'); const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Failed to start: ' + (err instanceof Error ? err.message : String(err)); console.error(err); } }, 20);
+setTimeout(async () => { try { await boot(); } catch (err) { $('loading').classList.add('hidden'); const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Failed to start: ' + (err instanceof Error ? err.message : String(err)); console.error(err); } }, 20);
