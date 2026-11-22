@@ -21,6 +21,8 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 - `src/trenches.ts` the traced network split into fire/communication runs by direction relative to the front; `styled()` centrelines. `src/shelling.ts` shelled bands from the record (division wire-cutting × corps garrison; German shelling of British trenches by corps `gerArt`).
 - `Battle.sectionPaths()` maps each section to the traced trench pieces it stands for; `Battle.germanFrontPath()` the German front ribbon from the cells' traced front crossings.
 - Roads and villages: `tools/roads.py` → `data/roads.json` (roads found as best paths through a double-line filter response between points known to be on them: the hand-placed main roads, and neighbouring villages; the Albert–Bapaume road fitted as a straight line, read by eye on 57D.SE). `tools/villages.py` → `data/buildings.json` (solid grey building blocks). `Renderer.buildScenery()`: blocks filled with houses (pitched roofs) or ruins by a damage estimate (German side near the front wrecked); tree lines along main roads and orchards round villages, stumps where shelled. Roads are pale strips in the trench mesh.
+- Trench mesh and scenery are cut into 1 km blocks (`chunked`) and only blocks in the view are drawn (`drawChunked`, frustum test on each block's box); nothing is rebuilt while moving.
+- Wrecked villages (`ruinedVillages()`: places where `damage()` ≥ 0.55): rubble on the ground (aux blue channel: house plots, streets, radial fade; brick and chalk fragments in the shader) and 3D rubble heaps and broken wall stubs in `buildScenery`.
 - Shell bursts (`effects` in main.ts) follow the simulation per 100 m stretch: German guns by `Battle.gerArt(cell, t)`, British by `bombardment()` lifting deeper after zero. Bursts are true size at any zoom.
 - Edge smoothing menu (`#smooth=full|light|fast`, saved in local storage): MSAA on/off and render scale; changing it reloads the page.
 - `src/battleview.ts` draws strips, captured trenches, the advance line (median + smoothed line through the foremost parties and held trenches, closing back to the British front) and German-held trenches behind it (`setPockets`, only near held trenches).
@@ -39,6 +41,7 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 - Not done: wire belts in front of German (and British) lines.
 - The 57D.SE screenshots miss a strip between St Pierre Divion and Thiepval Wood; `tools/trenches.py` fills it from the 1:5000 sheet.
 - Needs the owner: a late-June sheet for Gommecourt (56th Division's new forward trench), a Montauban sheet.
+- Better height data: IGN RGE ALTI 1 m (by département; Somme is D080) or MNT LiDAR HD 0.5 m (1 km tiles), both free under Licence Ouverte. Network access is off here, so the owner would need to download and attach it.
 - Known limit: 30 m DEM smooths Y Ravine, the Sunken Lane and the Thiepval ravines.
 
 ## Commits

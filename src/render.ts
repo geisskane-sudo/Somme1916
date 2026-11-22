@@ -61,6 +61,15 @@ void main(){
   }
   // close-up detail, faded out as a pixel grows past a couple of metres
   float mpp = length(fwidth(vPos.xz)), near = 1.0 - smoothstep(0.7, 2.6, mpp);
+  vec4 auxF = texture(uAux, vUV);
+  if (auxF.b > 0.02) {
+    // rubble where a village stood: brick dust and chalk, broken into fragments up close
+    vec2 p = vPos.xz; float n1 = vnoise(p * 0.15), n2 = vnoise(p * 0.9 + 17.0);
+    vec3 rub = mix(vec3(0.56, 0.44, 0.36), vec3(0.76, 0.72, 0.64), smoothstep(0.35, 0.65, n1));
+    rub *= 0.85 + 0.3 * n2;
+    if (near > 0.0) { vec2 c = floor(p / 1.4); float h = hash12(c); if (h > 0.55) rub = mix(rub, h > 0.8 ? vec3(0.45, 0.33, 0.27) : vec3(0.84, 0.81, 0.74), 0.55 * near); }
+    base = mix(base, rub, smoothstep(0.02, 0.5, auxF.b) * (0.55 + 0.4 * n1));
+  }
   if (near > 0.0) {
     vec4 aux = texture(uAux, vUV); vec3 b0 = base;
     vec2 p = vPos.xz;
@@ -243,6 +252,7 @@ export class Camera {
   }
 }
 
+interface Chunked { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number; parts: { first: number; n: number; box: number[] }[] }
 interface Ribbon { vao: WebGLVertexArrayObject; n: number; color: [number, number, number, number]; width: number; dash: number; lift: number; minDist?: number; maxDist?: number }
 export interface Burst { x: number; y: number; z: number; size: number; r: number; g: number; b: number; a: number; vy: number; grow: number; life: number; age: number; glow: boolean }
 
@@ -260,7 +270,7 @@ export class Renderer {
   private tex!: WebGLTexture;
   private detail: { tex: WebGLTexture; box: number[] } | null = null;
   private pTr!: WebGLProgram; private uTr!: Record<string, WebGLUniformLocation | null>;
-  private trMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
+  private trMesh: Chunked | null = null;
   private map: { tex: WebGLTexture; a: number[]; b: number[]; frame: number[] } | null = null;
   /** 0..1: how strongly the 1916 map is shown on the ground */
   mapOpacity = 0;
@@ -451,6 +461,19 @@ export class Renderer {
       g.beginPath(); b.poly.forEach((q, i) => { const [x, y] = this.texPx(q.x, q.z); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
       g.fillStyle = `rgb(${Math.round(Math.min(1, b.p) * 255)},0,0)`; g.fill();
     }
+    // rubble where the villages stood (blue): the old house plots and streets, fading out at the edge
+    g.globalCompositeOperation = 'lighten';
+    const roadsXZ = (roadData.roads as unknown as { p: [number, number][] }[]).map(r => r.p);
+    const pxm = (m: number) => m / ((this.dem.cols * this.dem.cell * 71500) / TEX);
+    for (const vil of this.ruinedVillages()) {
+      const [cx, cy] = this.texPx(vil.x, vil.z), I = Math.round(255 * Math.min(1, vil.dmg * 1.1));
+      const gr = g.createRadialGradient(cx, cy, 0, cx, cy, pxm(vil.r)); gr.addColorStop(0, `rgb(0,0,${Math.round(I * 0.75)})`); gr.addColorStop(1, 'rgb(0,0,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, pxm(vil.r), 0, 6.283); g.fill();
+      g.fillStyle = `rgb(0,0,${I})`;
+      for (const [x, z] of vil.houses) { const [u, w] = this.texPx(x, z); g.beginPath(); g.arc(u, w, pxm(22), 0, 6.283); g.fill(); }
+      g.strokeStyle = `rgb(0,0,${I})`; g.lineWidth = pxm(16); g.lineCap = 'round';
+      for (const q of roadsXZ) { g.beginPath(); let on = false; for (const [x, z] of q) { const near = Math.hypot(x - vil.x, z - vil.z) < vil.r; const [u, w] = this.texPx(x, z); if (near) { on ? g.lineTo(u, w) : g.moveTo(u, w); on = true; } else on = false; } g.stroke(); }
+    }
     g.fillStyle = 'rgb(0,255,0)';
     for (const w of GEO.woods) { g.beginPath(); w.poly.forEach((q, i) => { const p = toXZ(q), [x, y] = this.texPx(p.x, p.z); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); }
     if (this.aux) this.gl.deleteTexture(this.aux);
@@ -614,21 +637,45 @@ export class Renderer {
     this.strips(v, roads.filter(r => !r.main).map(r => r.p), 2.6, [0.78, 0.75, 0.64, 1], box);
     this.strips(v, comm, 2.3, [0.72, 0.68, 0.58, 1], box); this.strips(v, fire, 3.4, [0.74, 0.7, 0.6, 1], box);    // chalk spoil
     this.strips(v, comm, 0.8, [0.25, 0.2, 0.16, 1], box); this.strips(v, fire, 1.1, [0.22, 0.17, 0.13, 1], box);   // the cut
-    this.trMesh = this.stripMesh(this.trMesh, v);
+    if (!this.pTr) { this.pTr = createProgram(this.gl, TRENCH_VS, TRENCH_FS); this.uTr = uniforms(this.gl, this.pTr, ['uVP', 'uCam', 'uPx', 'uLight', 'uFog', 'uFogDen', 'uAlpha', 'uMinW', 'uLift', 'uHoles']); }
+    this.trMesh = this.chunked(v, 12, [[0, 3, 0], [1, 2, 3], [2, 1, 5], [3, 1, 6], [4, 4, 7], [5, 1, 11]]);
+  }
+  private dmgFn: ((x: number, z: number) => number) | null = null;
+  /** 0 untouched .. 1 wrecked: the German side near the front, and no man's land, were shelled to pieces */
+  damage(x: number, z: number) {
+    if (!this.dmgFn) {
+      const B = resample(this.lines.british, 50), G = resample(this.lines.german, 50);
+      const dmin = (p: P[], x: number, z: number) => { let d = Infinity; for (const q of p) d = Math.min(d, (q.x - x) ** 2 + (q.z - z) ** 2); return Math.sqrt(d); };
+      this.dmgFn = (x, z) => {
+        const dg = dmin(G, x, z), db = dmin(B, x, z);
+        if (dg < db) return Math.max(0, Math.min(1, 1.15 - dg / 2600));             // German side
+        return Math.max(0, Math.min(0.6, 0.6 - (db - 150) / 1200));                 // British side, near the front
+      };
+    }
+    return this.dmgFn(x, z);
+  }
+  private ruinsList: { name: string; x: number; z: number; r: number; dmg: number; houses: [number, number][] }[] | null = null;
+  /** villages in the shelled zone, with the extent of their old houses (traced where a sheet covers them) */
+  ruinedVillages() {
+    if (this.ruinsList) return this.ruinsList;
+    const bl = buildingData.buildings as unknown as { p: [number, number][] }[], out: NonNullable<Renderer['ruinsList']> = [];
+    for (const pl of GEO.places) {
+      const c = toXZ(pl.ll), dmg = this.damage(c.x, c.z); if (dmg < 0.55) continue;
+      const houses = bl.map(b => { let x = 0, z = 0; for (const p of b.p) { x += p[0]; z += p[1]; } return [x / b.p.length, z / b.p.length] as [number, number]; })
+        .filter(([x, z]) => Math.hypot(x - c.x, z - c.z) < 480);
+      const ds = houses.map(([x, z]) => Math.hypot(x - c.x, z - c.z)).sort((a, b) => a - b);
+      const r = ds.length > 3 ? Math.max(170, Math.min(400, ds[Math.floor(ds.length * 0.85)] + 60)) : 230;
+      out.push({ name: pl.name, x: c.x, z: c.z, r, dmg, houses });
+    }
+    return (this.ruinsList = out);
   }
   // ---------- scenery: buildings traced from the trench maps, trees along the main roads and round villages ----------
-  private scenery: { vao: WebGLVertexArrayObject; n: number } | null = null;
+  private scenery: Chunked | null = null;
   private buildScenery() {
-    const gl = this.gl, v: number[] = [], dem = this.dem, B = resample(this.lines.british, 50), G = resample(this.lines.german, 50);
+    const gl = this.gl, v: number[] = [], dem = this.dem;
     if (!this.pC) { this.pC = createProgram(gl, CRATER_VS, CRATER_FS); this.uC = uniforms(gl, this.pC, ['uVP', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen']); }
     let seed = 4242; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const dmin = (p: P[], x: number, z: number) => { let d = Infinity; for (const q of p) d = Math.min(d, (q.x - x) ** 2 + (q.z - z) ** 2); return Math.sqrt(d); };
-    /** 0 untouched .. 1 wrecked: the German side near the front, and no man's land, were shelled to pieces */
-    const damage = (x: number, z: number) => {
-      const dg = dmin(G, x, z), db = dmin(B, x, z);
-      if (dg < db) return Math.max(0, Math.min(1, 1.15 - dg / 2600));             // German side
-      return Math.max(0, Math.min(0.6, 0.6 - (db - 150) / 1200));                 // British side, near the front
-    };
+    const damage = (x: number, z: number) => this.damage(x, z);
     let ctr: number[] | null = null;          // when set, faces are turned to look away from this point
     const tri = (a: number[], b: number[], c: number[], col: number[]) => {
       const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
@@ -692,6 +739,35 @@ export class Renderer {
       const top = [x, cy + r * 1.1, z], bot = [x, cy - r * 0.9, z], ring = [0, 1, 2, 3].map(k => { const a = k * Math.PI / 2 + rnd() * 0.5; return [x + Math.cos(a) * r, cy, z + Math.sin(a) * r]; });
       for (let k = 0; k < 4; k++) { const a = ring[k], b = ring[(k + 1) % 4]; tri(a, b, top, col); tri(b, a, bot, [col[0] * 0.75, col[1] * 0.75, col[2] * 0.75, 1]); }
     };
+    // the wrecked villages: rubble heaps, brick and chalk, and stubs of wall along the old streets and house plots
+    const roadsXZ = (roadData.roads as unknown as { p: [number, number][] }[]).map(r => resample(r.p.map(([x, z]) => ({ x, z })), 5));
+    for (const vil of this.ruinedVillages()) {
+      const onRoads: P[] = []; for (const q of roadsXZ) for (const p of q) if (Math.hypot(p.x - vil.x, p.z - vil.z) < vil.r) onRoads.push(p);
+      const n = Math.round(260 * vil.dmg * (vil.r / 250));
+      for (let k = 0; k < n; k++) {
+        let x: number, z: number; const u = rnd();
+        if (u < 0.5 && vil.houses.length) { const h = vil.houses[Math.floor(rnd() * vil.houses.length)]; x = h[0] + (rnd() - 0.5) * 22; z = h[1] + (rnd() - 0.5) * 22; }
+        else if (u < 0.8 && onRoads.length) { const p = onRoads[Math.floor(rnd() * onRoads.length)]; x = p.x + (rnd() - 0.5) * 30; z = p.z + (rnd() - 0.5) * 30; }
+        else { const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * vil.r; x = vil.x + Math.cos(a) * rr; z = vil.z + Math.sin(a) * rr; }
+        const y = dem.height(x, z) - 0.2, brick = rnd() < 0.6, sh = 0.8 + rnd() * 0.3;
+        const col = brick ? [0.58 * sh, 0.42 * sh, 0.34 * sh, 1] : [0.76 * sh, 0.72 * sh, 0.64 * sh, 1];
+        if (rnd() < 0.62) {
+          // a heap: a low irregular pyramid
+          const w = 2 + rnd() * 4, h = 0.5 + rnd() * 1.4, a0 = rnd() * 6.283; ctr = [x, y - 5, z];
+          const C = [0, 1, 2, 3, 4].map(i => { const a = a0 + i * 1.2566 + rnd() * 0.4, rr = w * (0.7 + 0.5 * rnd()); return [x + Math.cos(a) * rr, y, z + Math.sin(a) * rr]; });
+          const top = [x + (rnd() - 0.5) * w * 0.4, y + h, z + (rnd() - 0.5) * w * 0.4];
+          for (let i = 0; i < 5; i++) tri(C[i], C[(i + 1) % 5], top, col);
+        } else {
+          // a stub of wall, broken along its top; now and then a gable end left standing
+          const L = 3 + rnd() * 7, a = rnd() < 0.5 ? Math.atan2(vil.z - z, vil.x - x) : rnd() * 6.283, ux = Math.cos(a) * L / 2, uz = Math.sin(a) * L / 2, t = 0.35;
+          const tall = rnd() < 0.07, h0 = tall ? 4 + rnd() * 4 : 0.6 + rnd() * 2.2, h1 = tall ? 1 + rnd() * 2 : 0.3 + rnd() * 1.6;
+          const wcol = [0.66 * sh, 0.6 * sh, 0.54 * sh, 1], nx = -uz / L * 2 * t, nz = ux / L * 2 * t;
+          ctr = [x, y + 1, z];
+          for (const sgn of [1, -1]) quad([x - ux + nx * sgn, y, z - uz + nz * sgn], [x + ux + nx * sgn, y, z + uz + nz * sgn], [x + ux + nx * sgn, y + h1, z + uz + nz * sgn], [x - ux + nx * sgn, y + h0, z - uz + nz * sgn], wcol);
+          ctr = [x, y - 50, z]; quad([x - ux + nx, y + h0, z - uz + nz], [x + ux + nx, y + h1, z + uz + nz], [x + ux - nx, y + h1, z + uz - nz], [x - ux - nx, y + h0, z - uz - nz], wcol);
+        }
+      }
+    }
     // lines of trees along the main roads
     for (const r of roadData.roads as unknown as { kind: string; p: [number, number][] }[]) {
       if (r.kind !== 'main') continue;
@@ -714,11 +790,46 @@ export class Renderer {
       }
     }
     ctr = null;
+    this.scenery = this.chunked(v, 10, [[0, 3, 0], [1, 3, 3], [2, 4, 6]]);
+  }
+  // ---------- meshes cut into 1 km blocks, so only the blocks in view are drawn ----------
+  /** regroup triangles (stride floats per vertex, position first) by the 1 km square their centre falls in */
+  private chunked(v: ArrayLike<number>, stride: number, layout: number[][]): Chunked {
+    const gl = this.gl, nt = v.length / (stride * 3), S = 1000, groups = new Map<string, number[]>();
+    for (let t = 0; t < nt; t++) {
+      const o = t * stride * 3, cx = (v[o] + v[o + stride] + v[o + 2 * stride]) / 3, cz = (v[o + 2] + v[o + stride + 2] + v[o + 2 * stride + 2]) / 3;
+      const k = Math.floor(cx / S) + ',' + Math.floor(cz / S); let g = groups.get(k); if (!g) groups.set(k, (g = [])); g.push(t);
+    }
+    const data = new Float32Array(v.length), parts: Chunked['parts'] = []; let w = 0;
+    for (const tris of groups.values()) {
+      const first = w / stride, box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+      for (const t of tris) for (let k = 0; k < 3 * stride; k++) {
+        const x = v[t * stride * 3 + k]; data[w++] = x;
+        const c = k % stride; if (c < 3) { box[c] = Math.min(box[c], x); box[c + 3] = Math.max(box[c + 3], x); }
+      }
+      parts.push({ first, n: w / stride - first, box });
+    }
     const vao = gl.createVertexArray()!, buf = gl.createBuffer()!;
-    gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
-    for (const [loc, size, off] of [[0, 3, 0], [1, 3, 3], [2, 4, 6]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 40, off * 4); }
+    gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    for (const [loc, size, off] of layout) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride * 4, off * 4); }
     gl.bindVertexArray(null);
-    this.scenery = { vao, n: v.length / 10 };
+    return { vao, buf, parts, n: data.length / stride };
+  }
+  /** draw the blocks of a chunked mesh whose bounding boxes are in the camera's view */
+  private drawChunked(m: Chunked, vp: Float32Array | number[], pad = 30) {
+    const gl = this.gl, r = (i: number) => [vp[i], vp[4 + i], vp[8 + i], vp[12 + i]];
+    const R0 = r(0), R1 = r(1), R2 = r(2), R3 = r(3);
+    const planes = [R3.map((x, i) => x + R0[i]), R3.map((x, i) => x - R0[i]), R3.map((x, i) => x + R1[i]), R3.map((x, i) => x - R1[i]), R3.map((x, i) => x + R2[i]), R3.map((x, i) => x - R2[i])];
+    gl.bindVertexArray(m.vao); let drawn = 0;
+    for (const p of m.parts) {
+      const b = p.box; let vis = true;
+      for (const P of planes) {
+        const x = P[0] >= 0 ? b[3] + pad : b[0] - pad, y = P[1] >= 0 ? b[4] + pad : b[1] - pad, z = P[2] >= 0 ? b[5] + pad : b[2] - pad;
+        if (P[0] * x + P[1] * y + P[2] * z + P[3] < 0) { vis = false; break; }
+      }
+      if (vis) { gl.drawArrays(gl.TRIANGLES, p.first, p.n); drawn++; }
+    }
+    return drawn;
   }
   // ---------- mine craters ----------
   private pC!: WebGLProgram; private uC!: Record<string, WebGLUniformLocation | null>;
@@ -862,7 +973,7 @@ export class Renderer {
       gl.useProgram(this.pC); gl.uniformMatrix4fv(this.uC.uVP, false, cam.vp);
       gl.uniform3fv(this.uC.uSun, light.sun); gl.uniform3fv(this.uC.uSunCol, light.sunCol); gl.uniform3fv(this.uC.uSky, light.sky);
       gl.uniform3f(this.uC.uCam, cam.ex, cam.ey, cam.ez); gl.uniform3fv(this.uC.uFog, light.fog); gl.uniform1f(this.uC.uFogDen, 0.6 / (cam.dist * 3 + 8000));
-      gl.bindVertexArray(this.scenery.vao); gl.drawArrays(gl.TRIANGLES, 0, this.scenery.n);
+      this.drawChunked(this.scenery, cam.vp);
       gl.enable(gl.CULL_FACE);
     }
     if (this.craterMesh && this.craterOn.some(Boolean)) {
@@ -883,7 +994,7 @@ export class Renderer {
     };
     if (this.trMesh?.n && dOn > 0) {
       trUniforms(); gl.uniform1f(this.uTr.uAlpha, dOn); gl.uniform1f(this.uTr.uMinW, 1.1); gl.uniform1f(this.uTr.uLift, 0);
-      gl.bindVertexArray(this.trMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, this.trMesh.n);
+      this.drawChunked(this.trMesh, cam.vp);
     }
     if (this.pocketMesh?.n) {
       trUniforms(); gl.uniform1f(this.uTr.uAlpha, 1); gl.uniform1f(this.uTr.uMinW, 2.6); gl.uniform1f(this.uTr.uLift, 0.6);
