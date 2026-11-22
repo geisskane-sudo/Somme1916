@@ -83,6 +83,28 @@ class Sheet:
         Q = cv2.approxPolyDP(P[:, ::-1].astype(np.float32).reshape(-1, 1, 2), 0.9, False).reshape(-1, 2)
         return self.f(Q[:, 0].astype(float), Q[:, 1].astype(float))
 
+def clean(roads, min_piece=150.0):
+    """drop stretches that run along the map's grid lines (the tracer can lock onto them): segments within 2.5 degrees
+    of the grid's axes and longer than 60 m, then any piece left shorter than min_piece"""
+    out = []
+    for r in roads:
+        if r['kind'] == 'main' and len(r['p']) == 2: out.append(r); continue          # the straight Albert-Bapaume road
+        P = np.array(r['p'], float); pieces = [[P[0]]]
+        for a, b in zip(P[:-1], P[1:]):
+            d = b - a; L = np.hypot(*d); ang = np.degrees(np.arctan2(d[1], d[0])) % 90
+            on_grid = min((ang - 87) % 90, (87 - ang) % 90) < 2.5 and L > 60
+            if on_grid: pieces.append([b])
+            else: pieces[-1].append(b)
+        for q in pieces:
+            q = np.array(q)
+            if len(q) > 1 and np.hypot(*np.diff(q, axis=0).T).sum() >= min_piece:
+                out.append({**r, 'p': [[round(float(x), 1), round(float(z), 1)] for x, z in q]})
+    return out
+
+if __name__ == '__main__' and len(sys.argv) > 1 and sys.argv[1] == '--clean':
+    R = json.load(open(f'{ROOT}/data/roads.json')); n0 = len(R['roads']); R['roads'] = clean(R['roads'])
+    json.dump(R, open(f'{ROOT}/data/roads.json', 'w')); print(n0, '->', len(R['roads']), 'pieces'); sys.exit()
+
 if __name__ == '__main__':
     g = json.load(open(f'{ROOT}/data/geography_src.json'))
     keys = list(sheets.SHOTS); geo = {k: centre(k) for k in keys}
@@ -152,6 +174,7 @@ if __name__ == '__main__':
     for d, a, b in pairs:
         if d > 3200: break
         if add(a[1], b[1], 'road', True): print(' ', a[0], '-', b[0], int(d), flush=True)
+    out = clean(out)
     json.dump({'source': 'Roads traced from NLS British trench maps 1:20,000 (CC-BY National Library of Scotland), tools/roads.py', 'roads': out},
               open(f'{ROOT}/data/roads.json', 'w'))
     print('total', len(out))

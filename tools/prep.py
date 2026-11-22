@@ -20,9 +20,18 @@ if os.path.exists('data/britishfront.json'):
     g['britishFrontSketch'] = g['britishFront']; g['britishFront'] = bf['line']
     for w in g['woods']:
         if w['name'] == 'Thiepval Wood': w['poly'] = bf['thiepvalWood']
+# villages, features, the Ancre and woods re-read from the trench maps (tools/places.py, tools/ancre.py, tools/woods.py)
+import sys; sys.path.insert(0, "tools"); import places as _pl
+for p in g['places'] + g['features']:
+    if p['name'] in _pl.READ: p['ll'] = _pl.ll(p['name'])
+if os.path.exists('data/ancre.json'): g['ancre'] = json.load(open('data/ancre.json'))['line']
+if os.path.exists('data/woods.json'):
+    WD = json.load(open('data/woods.json'))
+    for w in g['woods']:
+        if w['name'] in WD: w['poly'] = WD[w['name']]
 # snap the Ancre: search across the valley (perpendicular to flow) for the lowest point within 250 m
 pts = g['ancre']; snapped = []
-for k, (la, lo) in enumerate(pts):
+for k, (la, lo) in enumerate([] if os.path.exists('data/ancre.json') else pts):   # the traced line is already on the valley floor
     a = pts[max(0, k-1)]; b = pts[min(len(pts)-1, k+1)]
     dy = (b[0]-a[0]) * 111000; dx = (b[1]-a[1]) * 71500; l = (dx*dx+dy*dy) ** .5 or 1
     nx, ny = -dy/l, dx/l
@@ -32,7 +41,7 @@ for k, (la, lo) in enumerate(pts):
         v = h(la2, lo2)
         if v < best[0] - 0.3: best = (v, la2, lo2)
     snapped.append([round(best[1], 5), round(best[2], 5)])
-g['ancre'] = snapped
+g['ancre'] = snapped or pts
 print('Ancre heights:', [round(h(*p)) for p in snapped])
 for k in ('britishFront', 'germanFront'):
     print(k, 'heights', [round(h(*p)) for p in g[k]][::4])
