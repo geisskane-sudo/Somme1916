@@ -52,20 +52,15 @@ export class BattleView {
     r.clearFlat();
     if (b.done < 0) return;
     const scale = Math.max(1, cam.dist / 3000);
-    // captured German trenches
-    if (cam.dist < 16000) for (const s of b.secs) {
-      if (!this.owner(s.id, t)) continue;
-      const c = b.cells[s.cell], w = b.world(c.s, s.depth), tx = w.az, tz = -w.ax;
-      const closeUp = this.hide && this.hide.size > 0 && cam.dist < 2200;
-      r.flatQuad(w.x, w.z, tx * CELL * 0.5, tz * CELL * 0.5, w.ax * (closeUp ? 5 : 16 * scale), w.az * (closeUp ? 5 : 16 * scale), 0.86, 0.12, 0.1, closeUp ? 0.22 : 0.42, 2);
-    }
     // companies
     for (const c of b.strips) {
       if (this.hide?.has(c.id)) continue;
       const { depth, men, state } = this.stripAt(c.id, t);
       if (men < 1 || state === ST.spent && cam.dist > 4000) continue;
       const w = b.world(c.s, depth), tx = w.az, tz = -w.ax;
-      const half = c.len / 2 * 0.9, thick = (5 + 14 * Math.sqrt(men / 180)) * scale;
+      // thick blocks from afar, thin lines along the frontage up close so the ground shows
+      const f = Math.min(1, Math.max(0, (cam.dist - 1200) / 4000)), sm = f * f * (3 - 2 * f);
+      const half = c.len / 2 * 0.9, thick = (2 + 3 * Math.sqrt(men / 180)) * (1 - sm) + (5 + 14 * Math.sqrt(men / 180)) * scale * sm;
       const col = COL[state] ?? COL[ST.wait];
       r.flatQuad(w.x, w.z, tx * half, tz * half, w.ax * thick, w.az * thick, col[0], col[1], col[2], col[3], 4);
     }
@@ -75,6 +70,10 @@ export class BattleView {
   }
   private minute(t: number) {
     const b = this.b, runs: P[][] = []; let cur: P[] | null = null;
+    // captured trenches: the traced trench lengths each held section stands for
+    const paths = b.sectionPaths(), held: P[][] = [];
+    for (const s of b.secs) if (this.owner(s.id, t)) held.push(...paths[s.id]);
+    this.r.setCaptured(held);
     for (const c of b.cells) {
       let d = -1; for (const id of c.secs) if (this.owner(id, t)) d = b.secs[id].depth;
       if (d >= 0) {

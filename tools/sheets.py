@@ -4,9 +4,10 @@
 # yards east (E) and south (S) of the north-west corner of 57D's A square. 62D's lettered squares
 # start again at 62D's top edge, which on 57D's lattice falls at S = 22775 yards (fitted to landmarks on the Fricourt sheet).
 # Anchor: square R19's north-west corner on the georeferenced 1:5000 Schwaben Redoubt sheet.
+import os
 import json, sys, numpy as np
 from PIL import Image
-ROOT = '/home/claude/somme-1july'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 YD = 0.9144
 LETTER = {c: (i // 6, i % 6) for i, c in enumerate('ABCDEFGHIJKLMNOPQRSTUVWX')}
 

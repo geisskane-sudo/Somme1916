@@ -17,7 +17,9 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 
 ## Layout
 - `src/battle.ts` simulation: 100 m cells along the British front; German sections per cell (front, support, reserve, intermediates, second line); company strips; per-minute recording. Record steering via `data/record.json` keyframes; loss scaling `k` from `data/steer.json`. German trench depths per cell come from `data/trenches.json` crossings (`tracedDepths`), schematic offsets where no sheet covers.
-- `src/render.ts` custom WebGL2 renderer: terrain from Copernicus 30 m DEM, painted 4096 map texture (`paintMap`), ribbons, blocks, bursts. Close-up trial: `setCloseUp(mode)` (1 trench geometry, 2 sharp 0.8 m/px ground patch, 3 both) over `Renderer.CLOSE_BOX` at Thiepval, selected from the "Close-up" menu.
+- `src/render.ts` custom WebGL2 renderer: terrain from Copernicus 30 m DEM, painted 4096 map texture (`paintMap`), ribbons, blocks, bursts. Close-up: below `PATCH_ON` camera distance a 3.2 km patch round the camera is repainted at ~0.8 m/px (`paintPatch`, ~1 m/px on phones) and every trench in it is drawn as geometry (`buildTrenchMesh`): fire trenches with traverses, communication trenches narrower and zigzag. Captured trench lengths are a red strip mesh (`setCaptured`).
+- `src/trenches.ts` the traced network split into fire/communication runs by direction relative to the front; `styled()` centrelines. `src/shelling.ts` shell holes for the patch from the record (division wire-cutting × corps garrison; German shelling of British trenches by corps `gerArt`).
+- `Battle.sectionPaths()` maps each section to the traced trench pieces it stands for; `Battle.germanFrontPath()` the German front ribbon from the cells' traced front crossings.
 - `src/battleview.ts` draws strips, captured sections, live advance line. `src/main.ts` UI and loop. `src/geo.ts` coordinates (local metres: x east, z south; LAT0 50.06, LON0 2.72) and DEM.
 - `data/geography_src.json` hand-built geography → `tools/prep.py` → `web/geography.json` + `src/demdata.ts`. prep.py overrides the British front and Thiepval Wood from `data/britishfront.json`.
 - `data/oob_british.json`, `data/plan.json` (sector conditions), `data/record.json` (keyframes per division).
@@ -28,12 +30,10 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 - `tools/trenches.py` extracts red German trenches → `data/trenches.json` (~2,200 lines). `tools/british.py` follows the blue "British front line" → `data/britishfront.json` (Gommecourt kept from the sketch; Ancre to Thiepval Wood from the 1:5000 sheet; stops at Mansel Copse). `tools/thiepval.py` the 1:5000 extraction (slow).
 - Gaps: about 500 m at Gommecourt (screenshot 04, 1:10,000, could fill it once its corners are labelled); no sheet for Montauban–Maricourt.
 
-## Proposed next steps (agreed order, not started)
-1. Redraw the green German front-line ribbon from the traced front trench.
-2. Style fire trenches (traverses) and communication trenches (narrower, zigzag) differently.
-3. Show captured trenches by colouring the actual traced trench segments instead of rectangles.
-4. Wire belts in front of German (and British) lines.
-5. Close-up for the whole front: trench geometry plus a sharp ground patch repainted around the camera; shell holes tied to bombardment intensity and mine craters; company blocks thinner or fading when zoomed in.
+## Next steps
+- Done 22 Nov: German front ribbon from the trace; fire/communication trench styles; captured trenches on the real trenches; whole-front close-up; shell holes from the record; thin company lines up close.
+- Not done: wire belts in front of German (and British) lines.
+- The 57D.SE screenshots miss a strip between St Pierre Divion and Thiepval Wood; `tools/trenches.py` fills it from the 1:5000 sheet.
 - Needs the owner: a late-June sheet for Gommecourt (56th Division's new forward trench), a Montauban sheet.
 - Known limit: 30 m DEM smooths Y Ravine, the Sunken Lane and the Thiepval ravines.
 

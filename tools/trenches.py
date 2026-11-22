@@ -2,13 +2,14 @@
 # (tools/sheets.py) -> data/trenches.json. Red ink is extracted, thinned to centre lines, traced
 # into polylines, gaps in broken ink joined, and converted to local metres. Where screenshots
 # overlap, each place is taken from the screenshot whose map area centre is nearest.
+import os
 import json, sys, numpy as np, cv2
 from PIL import Image
 from skimage.morphology import skeletonize
 from scipy.spatial import cKDTree
-sys.path.insert(0, '/home/claude/somme-1july/tools')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sheets
-ROOT = '/home/claude/somme-1july'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 fits = json.load(open(f'{ROOT}/data/sheetfits.json'))
 EXTRA_MASK = {  # red lettering and other red marks that are not trenches (x0, y0, x1, y1)
   '07': [(1700, 240, 1790, 320), (1780, 330, 1904, 370)],   # supply dump shading, its note
@@ -122,7 +123,20 @@ if __name__ == '__main__':
                 else: seg = []
             if len(seg) > 1: lines.append({'sheet': k, 'p': seg})
         print(k, len(got), 'traced,', len(lines) - n0, 'kept', flush=True)
+    # the 1:20,000 screenshots of 57D.SE miss a strip between St Pierre Divion and Thiepval Wood (sheets 08/09);
+    # fill it from the 1:5000 Schwaben sheet (tools/thiepval.py), keeping only the parts no screenshot covers
+    sch = json.load(open(f'{ROOT}/data/thiepval.json'))
+    n0 = len(lines)
+    for P in sch['trenches']:
+        seg = []
+        for p in P:
+            if not any(inside(np.array(p), geo[j][1]) for j in keys): seg.append([round(p[0], 1), round(p[1], 1)])
+            elif len(seg) > 1: lines.append({'sheet': '5000', 'p': seg}); seg = []
+            else: seg = []
+        if len(seg) > 1: lines.append({'sheet': '5000', 'p': seg})
+    print('1:5000 fill', len(lines) - n0, 'lines', flush=True)
     meta = {k: {'sheet': sheets.SHOTS[k]['sheet'], 'date': sheets.SHOTS[k]['date'], 'fit': fits[k], 'corners': [[round(float(c[0]), 1), round(float(c[1]), 1)] for c in geo[k][1]]} for k in keys}
+    meta['5000'] = {'sheet': 'Schwaben Redoubt 1:5000', 'date': '20 Oct 1916', 'fit': sch['fit'], 'corners': sch['corners']}
     json.dump({'source': 'German trenches traced from NLS British trench maps 1:20,000 (57D NE ed. 2B, 16 May 1916; 57D SE ed. 2B, 28 Apr 1916; 62D NE ed. 2B, 25 Apr 1916), CC-BY National Library of Scotland',
                'sheets': meta, 'lines': lines}, open(f'{ROOT}/data/trenches.json', 'w'))
     print('total', len(lines), 'lines,', sum(len(l['p']) for l in lines), 'points')

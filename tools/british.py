@@ -1,9 +1,10 @@
 # British front line from the blue "BRITISH FRONT LINE" on the NLS trench-map screenshots -> local metres
+import os
 import json, sys, math, numpy as np, cv2
 from PIL import Image
-sys.path.insert(0, '/home/claude/somme-1july/tools')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sheets
-ROOT = '/home/claude/somme-1july'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 fits = json.load(open(f'{ROOT}/data/sheetfits.json'))
 
 def blue_pixels(k):

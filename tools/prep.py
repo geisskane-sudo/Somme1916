@@ -1,5 +1,6 @@
 """Prepare viewer assets: downsampled elevation (uint16 decimetres) and geography with the Ancre snapped to the valley floor.
 Run: python3 tools/prep.py"""
+import os
 import json, numpy as np
 from PIL import Image
 dem = np.array(Image.open('data/dem/cop30_somme.tif'), dtype=np.float32)   # 720 x 1008, rows from north

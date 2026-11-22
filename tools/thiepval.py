@@ -3,10 +3,11 @@
 # Fit: scale from the sheet's 1000-yard grid (298 px = 914.4 m); position and rotation fitted so the
 # sheet's German front line (traced by hand below) matches the front line traced from the 1:20000
 # sheets; checked by the Thiepval Memorial landing on the chateau site.
+import os
 import json, sys, numpy as np, cv2
 from PIL import Image
 from skimage.morphology import skeletonize
-ROOT = '/home/claude/somme-1july'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = f'{ROOT}/refs/thiepval/schwaben_1-5000_ed1_corrected_1916-10-20.png'
 FIT = dict(uc=425, vc=340, X0=-2247.1, Z0=261.8, th=np.radians(-3.0), s=3.07)
 FRAME = (30, 43, 771, 641)          # map frame in sheet pixels
