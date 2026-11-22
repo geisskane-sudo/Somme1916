@@ -29,11 +29,16 @@ export class Dem {
   minX: number; maxX: number; minZ: number; maxZ: number;
   /** 5 m grids (IGN RGE ALTI) in 1 km blocks along the front, loaded from terrain.bin; key 'i,j' */
   fine = { ...FINE, h: new Map<string, Float32Array>() };
-  /** take the fine terrain from terrain.bin's bytes */
-  loadFine(buf: ArrayBuffer) {
-    const N = FINE.n + 1, per = N * N, u16 = new Uint16Array(buf);
-    if (u16.length !== per * FINE.blocks.length) { console.warn('terrain.bin does not match the block list'); return; }
-    FINE.blocks.forEach(([i, j], k) => { const h = new Float32Array(per); for (let q = 0; q < per; q++) h[q] = u16[k * per + q] * FINE.scale; this.fine.h.set(i + ',' + j, h); });
+  /** take the fine terrain from terrain.png's pixels (RGBA, as from getImageData); false if they don't check out */
+  loadFine(px: Uint8ClampedArray, width: number) {
+    const N = FINE.n + 1; let sum = 0; const out = new Map<string, Float32Array>();
+    FINE.blocks.forEach(([i, j], k) => {
+      const h = new Float32Array(N * N), r0 = Math.floor(k / FINE.cols) * N, c0 = (k % FINE.cols) * N;
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) { const o = ((r0 + r) * width + c0 + c) * 4, d = px[o] * 256 + px[o + 1]; sum += d; h[r * N + c] = d * FINE.scale; }
+      out.set(i + ',' + j, h);
+    });
+    if (sum !== FINE.checksum) { console.warn('terrain.png did not decode exactly; using the coarse terrain'); return false; }
+    this.fine.h = out; return true;
   }
   constructor() {
     const d = GEO.dem;

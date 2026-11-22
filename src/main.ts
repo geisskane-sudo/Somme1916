@@ -15,7 +15,15 @@ const T0 = 6 * 60, T1 = 22 * 60 + 30, ZERO = 7 * 60 + 30;
 async function boot() {
   const dem = new Dem();
   // the 5 m terrain along the front (a separate file; the map still works without it)
-  try { const res = await fetch('terrain.bin'); if (res.ok) dem.loadFine(await res.arrayBuffer()); } catch (e) { console.warn('no fine terrain', e); }
+  try {
+    const res = await fetch('terrain.png');
+    if (res.ok) {
+      const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+      const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+      const g = cv.getContext('2d', { willReadFrequently: true })!; g.drawImage(bmp, 0, 0);
+      dem.loadFine(g.getImageData(0, 0, bmp.width, bmp.height).data, bmp.width);
+    }
+  } catch (e) { console.warn('no fine terrain', e); }
   const { units, divs, corps } = buildUnits();
   const canvas = $('gl') as HTMLCanvasElement;
   // edge smoothing setting: kept in the address (#smooth=light) and, where allowed, in local storage

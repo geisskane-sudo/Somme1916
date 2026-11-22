@@ -14,5 +14,5 @@ if (!process.argv.includes('--no-steer')) {
 await build({ entryPoints: [resolve(root, 'src/main.ts')], bundle: true, format: 'esm', target: 'es2020', minify: true, outfile: resolve(out, 'main.js'), logLevel: 'warning' });
 writeFileSync(resolve(out, 'index.html'), readFileSync(resolve(root, 'index.html'), 'utf8').replace('/src/main.ts', './main.js'));
 copyFileSync(resolve(root, 'web/thiepval_map.jpg'), resolve(out, 'thiepval_map.jpg'));
-copyFileSync(resolve(root, 'web/terrain.bin'), resolve(out, 'terrain.bin'));
+copyFileSync(resolve(root, 'web/terrain.png'), resolve(out, 'terrain.png'));
 console.log('Built to dist/');
