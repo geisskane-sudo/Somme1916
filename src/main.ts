@@ -55,6 +55,7 @@ function boot() {
   const sectorCorps = (s: string) => { const m = /\b(VIII|VII|XIII|XV|III|X)\b/.exec(s); return m ? corpsByName.get(`${m[1]} Corps`) : undefined; };
   const mines = GEO.mines.map(m => ({ ...m, t: parseTime(m.time) ?? ZERO, p: toXZ(m.ll), fired: false }));
   type Ev = { t: number; text: string; corps?: string; x?: number; z?: number; sim?: boolean };
+  r.setMines(mines.map(m => ({ x: m.p.x, z: m.p.z, d: m.crater_m })));
   const evs: Ev[] = [];
   for (const e of events.timeline) { const tt = parseTime(e.time); if (tt === null) continue; const c = sectorCorps(e.sector); evs.push({ t: tt, text: e.event, corps: c?.name, x: c?.x, z: c?.z }); }
   for (const m of mines) evs.push({ t: m.t, text: `${m.name} mine blown${m.charge_lb ? ` (${m.charge_lb.toLocaleString()} lb of ammonal)` : ''}${m.note ? ' — ' + m.note : ''}`, x: m.p.x, z: m.p.z });
@@ -319,9 +320,9 @@ function boot() {
     if (playing) { t = Math.min(T1, bv.available, t + dt * speed / 60); if (t >= T1) play(false); }
     for (const m of mines) if (prevT < m.t && t >= m.t && t - m.t < 4) mineBlast(m);
     effects(dt);
-    // crater decals once a mine has gone up
+    // mine craters once a mine has gone up
     const decals: number[] = [];
-    for (const m of mines) if (t >= m.t) { const R = m.crater_m * 0.8 + 6; r.quad(decals, m.p.x, m.p.z, R, 0, 0, R, [0.33, 0.29, 0.24, 0.95], 1, 2); r.quad(decals, m.p.x, m.p.z, R * 2.4, 0, 0, R * 2.4, [0.86, 0.84, 0.78, 0.55], 1, 1.5); }
+    mines.forEach((m, i) => (r.craterOn[i] = t >= m.t));
     bv.draw(t, cam); moveBnLabels(); r.render(cam, light(t), decals, dt);
     $('clock').textContent = `${hhmm(t)}`;
     const tot = bv.totals(t);

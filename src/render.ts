@@ -17,9 +17,10 @@ void main(){ vPos=aPos; vN=aN; vUV=aUV; gl_Position=uVP*vec4(aPos,1.0); }`;
 const TERRAIN_FS = `#version 300 es
 precision highp float;
 in vec3 vPos; in vec3 vN; in vec2 vUV; uniform sampler2D uTex; uniform vec3 uSun, uSunCol, uSky, uCam, uFog; uniform float uFogDen, uContour;
-uniform sampler2D uDetail, uMap; uniform vec4 uDB; uniform float uDetailOn, uMapOn; uniform vec3 uMapA, uMapB; uniform vec4 uMapFrame;
+uniform sampler2D uDetail, uMap; uniform vec4 uDB; uniform vec4 uHoles[8]; uniform float uDetailOn, uMapOn; uniform vec3 uMapA, uMapB; uniform vec4 uMapFrame;
 out vec4 o;
 void main(){
+  for (int i = 0; i < 8; i++) if (uHoles[i].w > 0.0 && distance(vPos.xz, uHoles[i].xy) < uHoles[i].z) discard;   // mine craters
   vec3 base = texture(uTex, vUV).rgb;
   if (uDetailOn > 0.0) {
     vec2 du = (vPos.xz - uDB.xy) / (uDB.zw - uDB.xy);
@@ -107,6 +108,19 @@ void main(){
   float edge = 1.0 - min(smoothstep(0.0, fw.x, e.x), smoothstep(0.0, fw.y, e.y));
   o = vec4(mix(vCol.rgb, vCol.rgb * 0.35, edge), vCol.a);
 }`;
+// mine craters: a lit mesh with a bowl below ground (the terrain is cut away over it) and a raised lip
+const CRATER_VS = `#version 300 es
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aN; layout(location=2) in vec4 aCol;
+uniform mat4 uVP; out vec3 vPos; out vec3 vN; out vec4 vCol;
+void main(){ vPos = aPos; vN = aN; vCol = aCol; gl_Position = uVP * vec4(aPos, 1.0); gl_Position.z -= 0.0004 * gl_Position.w; }`;
+const CRATER_FS = `#version 300 es
+precision highp float;
+in vec3 vPos; in vec3 vN; in vec4 vCol; uniform vec3 uSun, uSunCol, uSky, uCam, uFog; uniform float uFogDen; out vec4 o;
+void main(){
+  vec3 n = normalize(vN);                       // normals already point up out of the ground
+  vec3 c = vCol.rgb * (uSunCol * max(dot(n, uSun), 0.0) + uSky * (0.55 + 0.45 * n.y));
+  o = vec4(mix(c, uFog, 1.0 - exp(-length(vPos - uCam) * uFogDen)), vCol.a);
+}`;
 // trenches as geometry: world-width strips on the ground, never thinner than about a pixel
 const TRENCH_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec2 aN; layout(location=2) in float aSide; layout(location=3) in float aHalf; layout(location=4) in vec4 aCol; layout(location=5) in float aEnd;
@@ -121,8 +135,9 @@ void main(){
 }`;
 const TRENCH_FS = `#version 300 es
 precision highp float;
-in vec4 vCol; in float vSide; in vec3 vW; uniform vec3 uLight, uCam, uFog; uniform float uFogDen, uAlpha; out vec4 o;
+in vec4 vCol; in float vSide; in vec3 vW; uniform vec3 uLight, uCam, uFog; uniform float uFogDen, uAlpha; uniform vec4 uHoles[8]; out vec4 o;
 void main(){
+  for (int i = 0; i < 8; i++) if (uHoles[i].w > 0.0 && distance(vW.xz, uHoles[i].xy) < uHoles[i].z * 1.3) discard;   // blown away by a mine
   float e = 1.0 - smoothstep(0.75, 1.0, abs(vSide));
   vec3 c = mix(vCol.rgb * uLight, uFog, 1.0 - exp(-length(vW - uCam) * uFogDen));
   o = vec4(c, vCol.a * uAlpha * (0.5 + 0.5 * e));
@@ -228,7 +243,7 @@ export class Renderer {
     if (!gl) throw new Error('This browser does not support WebGL2.');
     this.gl = gl;
     gl.getExtension('OES_texture_float_linear');
-    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour', 'uDetail', 'uMap', 'uDB', 'uDetailOn', 'uMapOn', 'uMapA', 'uMapB', 'uMapFrame']);
+    this.pT = createProgram(gl, TERRAIN_VS, TERRAIN_FS); this.uT = uniforms(gl, this.pT, ['uVP', 'uTex', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen', 'uContour', 'uDetail', 'uMap', 'uDB', 'uDetailOn', 'uMapOn', 'uMapA', 'uMapB', 'uMapFrame', 'uHoles']);
     this.pR = createProgram(gl, RIBBON_VS, RIBBON_FS); this.uR = uniforms(gl, this.pR, ['uVP', 'uCam', 'uPx', 'uWidth', 'uLift', 'uColor', 'uDash']);
     this.pB = createProgram(gl, BLOCK_VS, BLOCK_FS); this.uB = uniforms(gl, this.pB, ['uVP']);
     this.pF = createProgram(gl, FIG_VS, FIG_FS); this.uF = uniforms(gl, this.pF, ['uVP', 'uSwing', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen']);
@@ -563,7 +578,7 @@ export class Renderer {
   }
   private stripMesh(old: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null, v: number[]) {
     const gl = this.gl;
-    if (!this.pTr) { this.pTr = createProgram(gl, TRENCH_VS, TRENCH_FS); this.uTr = uniforms(gl, this.pTr, ['uVP', 'uCam', 'uPx', 'uLight', 'uFog', 'uFogDen', 'uAlpha', 'uMinW', 'uLift']); }
+    if (!this.pTr) { this.pTr = createProgram(gl, TRENCH_VS, TRENCH_FS); this.uTr = uniforms(gl, this.pTr, ['uVP', 'uCam', 'uPx', 'uLight', 'uFog', 'uFogDen', 'uAlpha', 'uMinW', 'uLift', 'uHoles']); }
     let mesh = old;
     if (!mesh) {
       const vao = gl.createVertexArray()!, buf = gl.createBuffer()!;
@@ -595,9 +610,67 @@ export class Renderer {
     this.strips(v, comm, 0.8, [0.25, 0.2, 0.16, 1], box); this.strips(v, fire, 1.1, [0.22, 0.17, 0.13, 1], box);   // the cut
     this.trMesh = this.stripMesh(this.trMesh, v);
   }
+  // ---------- mine craters ----------
+  private pC!: WebGLProgram; private uC!: Record<string, WebGLUniformLocation | null>;
+  private craterMesh: { vao: WebGLVertexArrayObject; parts: { first: number; n: number; hole: number[] }[] } | null = null;
+  /** which craters exist at this moment (index as given to setMines) */
+  craterOn: boolean[] = [];
+  /** mines: centre and the crater's overall diameter in metres (crater_m) */
+  setMines(mines: { x: number; z: number; d: number }[]) {
+    const gl = this.gl, v: number[] = [], parts: { first: number; n: number; hole: number[] }[] = [];
+    if (!this.pC) { this.pC = createProgram(gl, CRATER_VS, CRATER_FS); this.uC = uniforms(gl, this.pC, ['uVP', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen']); }
+    mines.forEach((m, mi) => {
+      // Lochnagar: about 70 m across the rim, 21 m deep, a lip 4-5 m high spreading 15 m; smaller craters scaled
+      const R = m.d <= 50 ? m.d / 2 : 0.35 * m.d, depth = Math.min(21, 0.6 * R), lip = 0.16 * R, Rout = R + Math.max(8, 0.45 * R);
+      const SEG = 64, NB = 14, NL = 12;
+      let seed = 31 + mi * 977; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      // an irregular rim: a few slow waves round the circle, not per-vertex noise (which streaks the shading)
+      const ph = Array.from({ length: 6 }, () => rnd() * 6.283);
+      const wob = Array.from({ length: SEG }, (_, j) => { const a = j / SEG * 6.283; return 1 + 0.05 * Math.sin(2 * a + ph[0]) + 0.035 * Math.sin(3 * a + ph[1]) + 0.02 * Math.sin(5 * a + ph[2]); });
+      const hn = Array.from({ length: SEG }, (_, j) => { const a = j / SEG * 6.283; return R * (0.05 * Math.sin(2 * a + ph[3]) + 0.03 * Math.sin(4 * a + ph[4])); });
+      const ring: { x: number; y: number; z: number; c: number[] }[][] = [];
+      const rad = [...Array.from({ length: NB + 1 }, (_, k) => R * k / NB), ...Array.from({ length: NL }, (_, k) => R + (Rout - R) * (k + 1) / NL)];
+      rad.forEach((r, k) => {
+        const row: { x: number; y: number; z: number; c: number[] }[] = [];
+        for (let j = 0; j < SEG; j++) {
+          const a = j / SEG * Math.PI * 2, w = wob[j], x = m.x + Math.cos(a) * r * w, z = m.z + Math.sin(a) * r * w, g = this.dem.height(x, z);
+          let y: number, c: number[];
+          if (r <= R) {
+            const u = r / R; y = g + lip - (depth + lip) * (1 - Math.pow(u, 2.2)) + hn[j] * u * u;
+            const k2 = 0.74 + 0.2 * u; c = [k2, k2 * 0.97, k2 * 0.86, 1];                            // chalk, greyer in the bottom
+          } else {
+            const u = (r - R) / (Rout - R); y = g + lip * (1 - u) * (1 - u) + 0.3 + hn[j] * (1 - u) * 0.5;
+            const ch = Math.pow(1 - u, 0.7); c = [0.6 + 0.34 * ch, 0.58 + 0.34 * ch, 0.44 + 0.38 * ch, Math.min(1, (1 - u) * 2.5)];   // chalk spoil thinning to turf
+          }
+          row.push({ x, y, z, c });
+        }
+        ring.push(row);
+      });
+      // normals from neighbouring vertices
+      const first = v.length / 10;
+      const P = (k: number, j: number) => ring[Math.max(0, Math.min(ring.length - 1, k))][(j + SEG) % SEG];
+      const vert = (k: number, j: number) => {
+        const p = P(k, j), a = P(k + 1, j), b = P(k - 1, j), c = P(k, j + 1), d = P(k, j - 1);
+        const ux = a.x - b.x, uy = a.y - b.y, uz = a.z - b.z, wx = c.x - d.x, wy = c.y - d.y, wz = c.z - d.z;
+        let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx; if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+        const L = Math.hypot(nx, ny, nz) || 1; if (k === 0) { nx = 0; ny = 1; nz = 0; }
+        v.push(p.x, p.y, p.z, nx / L, ny / L, nz / L, ...p.c);
+      };
+      for (let k = 0; k + 1 < ring.length; k++) for (let j = 0; j < SEG; j++) { vert(k, j); vert(k + 1, j); vert(k, j + 1); vert(k, j + 1); vert(k + 1, j); vert(k + 1, j + 1); }
+      parts.push({ first, n: v.length / 10 - first, hole: [m.x, m.z, R * 0.93, 1] });
+    });
+    const vao = gl.createVertexArray()!, buf = gl.createBuffer()!;
+    gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+    for (const [loc, size, off] of [[0, 3, 0], [1, 3, 3], [2, 4, 6]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 40, off * 4); }
+    gl.bindVertexArray(null);
+    this.craterMesh = { vao, parts };
+  }
   private capMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
   /** trench lengths in British hands, drawn red over the trenches */
   setCaptured(lines: P[][]) { const v: number[] = []; this.strips(v, lines, 4.2, [0.86, 0.12, 0.1, 0.9]); this.capMesh = this.stripMesh(this.capMesh, v); }
+  private pocketMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
+  /** German-held trench lengths behind the British advance */
+  setPockets(lines: P[][]) { const v: number[] = []; this.strips(v, lines, 4.2, [0.12, 0.5, 0.2, 0.9]); this.pocketMesh = this.stripMesh(this.pocketMesh, v); }
   /** replace the German front-line ribbon */
   setGermanFront(p: P[]) {
     const k = this.ribbons.findIndex(r => r === this.gfRibbon); const r = this.ribbon(p, [0.1, 0.45, 0.18, 1], 3.6); r.minDist = 2400;
@@ -671,17 +744,33 @@ export class Renderer {
     if (this.detail) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.detail.tex); gl.uniform1i(this.uT.uDetail, 1); gl.uniform4fv(this.uT.uDB, this.detail.box); }
     if (this.map) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.map.tex); gl.uniform1i(this.uT.uMap, 2); gl.uniform3fv(this.uT.uMapA, this.map.a); gl.uniform3fv(this.uT.uMapB, this.map.b); gl.uniform4fv(this.uT.uMapFrame, this.map.frame); }
     gl.activeTexture(gl.TEXTURE0);
+    const holes = new Float32Array(32);
+    this.craterMesh?.parts.forEach((p, i) => { if (i < 8 && this.craterOn[i]) holes.set(p.hole, i * 4); });
+    gl.uniform4fv(this.uT.uHoles, holes);
     gl.bindVertexArray(this.terrain.vao); gl.drawElements(gl.TRIANGLES, this.terrain.n, this.terrain.type, 0);
+    if (this.craterMesh && this.craterOn.some(Boolean)) {
+      gl.disable(gl.CULL_FACE); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.useProgram(this.pC); gl.uniformMatrix4fv(this.uC.uVP, false, cam.vp);
+      gl.uniform3fv(this.uC.uSun, light.sun); gl.uniform3fv(this.uC.uSunCol, light.sunCol); gl.uniform3fv(this.uC.uSky, light.sky);
+      gl.uniform3f(this.uC.uCam, cam.ex, cam.ey, cam.ez); gl.uniform3fv(this.uC.uFog, light.fog); gl.uniform1f(this.uC.uFogDen, 0.6 / (cam.dist * 3 + 8000));
+      gl.bindVertexArray(this.craterMesh.vao);
+      this.craterMesh.parts.forEach((p, i) => { if (this.craterOn[i]) gl.drawArrays(gl.TRIANGLES, p.first, p.n); });
+      gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE);
+    }
     gl.disable(gl.CULL_FACE);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     const trUniforms = () => {
       gl.useProgram(this.pTr); gl.uniformMatrix4fv(this.uTr.uVP, false, cam.vp); gl.uniform3f(this.uTr.uCam, cam.ex, cam.ey, cam.ez); gl.uniform1f(this.uTr.uPx, cam.px);
       const sy = Math.max(light.sun[1], 0); gl.uniform3f(this.uTr.uLight, light.sunCol[0] * sy + light.sky[0], light.sunCol[1] * sy + light.sky[1], light.sunCol[2] * sy + light.sky[2]);
-      gl.uniform3fv(this.uTr.uFog, light.fog); gl.uniform1f(this.uTr.uFogDen, 0.6 / (cam.dist * 3 + 8000));
+      gl.uniform3fv(this.uTr.uFog, light.fog); gl.uniform1f(this.uTr.uFogDen, 0.6 / (cam.dist * 3 + 8000)); gl.uniform4fv(this.uTr.uHoles, holes);
     };
     if (this.trMesh?.n && dOn > 0) {
       trUniforms(); gl.uniform1f(this.uTr.uAlpha, dOn); gl.uniform1f(this.uTr.uMinW, 1.1); gl.uniform1f(this.uTr.uLift, 0);
       gl.bindVertexArray(this.trMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, this.trMesh.n);
+    }
+    if (this.pocketMesh?.n) {
+      trUniforms(); gl.uniform1f(this.uTr.uAlpha, 1); gl.uniform1f(this.uTr.uMinW, 2.6); gl.uniform1f(this.uTr.uLift, 0.6);
+      gl.bindVertexArray(this.pocketMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, this.pocketMesh.n);
     }
     if (this.capMesh?.n) {
       trUniforms(); gl.uniform1f(this.uTr.uAlpha, 1); gl.uniform1f(this.uTr.uMinW, 2.6); gl.uniform1f(this.uTr.uLift, 0.6);

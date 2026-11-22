@@ -69,20 +69,49 @@ export class BattleView {
     if (m0 !== this.lastMinute) { this.lastMinute = m0; this.minute(t); }
   }
   private minute(t: number) {
-    const b = this.b, runs: P[][] = []; let cur: P[] | null = null;
+    const b = this.b, n = b.cells.length, rec = b.rec, { m0 } = this.idx(t);
     // captured trenches: the traced trench lengths each held section stands for
     const paths = b.sectionPaths(), held: P[][] = [];
     for (const s of b.secs) if (this.owner(s.id, t)) held.push(...paths[s.id]);
     this.r.setCaptured(held);
-    for (const c of b.cells) {
-      let d = -1; for (const id of c.secs) if (this.owner(id, t)) d = b.secs[id].depth;
-      if (d >= 0) {
-        if (!cur) { cur = [b.world(c.s - CELL * 0.6, 0)]; runs.push(cur); }
-        cur.push(b.world(c.s, d + 15));
-      } else if (cur) { cur.push(b.world(c.s - CELL * 0.4, 0)); cur = null; }
+    // the line of furthest advance: loosely joins the foremost British parties (companies beyond their own
+    // front line, and trenches still held), smoothed so a single deep party doesn't make a spike
+    const FWD = new Set<number>([ST.advance, ST.halted, ST.assault, ST.hold, ST.mop, ST.pinned]);
+    const D = new Float32Array(n).fill(-1);
+    const holds = new Uint8Array(n); for (const s of b.secs) if (this.owner(s.id, t)) holds[s.cell] = 1;
+    for (const c of b.strips) {
+      const { depth, men, state } = this.stripAt(c.id, t);
+      // parties beyond the German front line count only where some trench there is in British hands
+      if (men >= 4 && depth > 15 && FWD.has(state) && (depth < b.cells[c.cell].w - 10 || holds[c.cell])) D[c.cell] = Math.max(D[c.cell], depth);
     }
-    if (cur) cur.push(b.world(b.cells[b.cells.length - 1].s + CELL * 0.4, 0));
-    this.r.setLive(0, runs.map(q => q.map(p => ({ x: p.x, z: p.z }))), [0.95, 0.16, 0.1, 1], 4.5, 6);
+    for (const s of b.secs) if (this.owner(s.id, t)) D[s.cell] = Math.max(D[s.cell], s.depth + 10);
+    for (let i = 1; i < n - 1; i++) if (D[i] < 0 && D[i - 1] >= 0 && D[i + 1] >= 0) D[i] = (D[i - 1] + D[i + 1]) / 2;   // bridge a one-stretch gap
+    const runs: P[][] = [], front = new Float32Array(n).fill(-1);
+    for (let i = 0; i < n;) {
+      if (D[i] < 0) { i++; continue; }
+      let j = i; while (j < n && D[j] >= 0) j++;
+      // median of five, then a gentle smoothing of the ground positions
+      const d: number[] = [];
+      for (let k = i; k < j; k++) { const v: number[] = []; for (let q = Math.max(i, k - 2); q <= Math.min(j - 1, k + 2); q++) v.push(D[q]); v.sort((x, y) => x - y); d.push(v[v.length >> 1]); }
+      const pts = d.map((dd, k) => b.world(b.cells[i + k].s, dd));
+      const sm = pts.map((_, k) => { let x = 0, z = 0, w = 0; for (let q = -2; q <= 2; q++) { const p = pts[k + q]; if (!p) continue; const g = Math.exp(-q * q / 2.5); x += p.x * g; z += p.z * g; w += g; } return { x: x / w, z: z / w }; });
+      d.forEach((dd, k) => (front[i + k] = dd));
+      const a = b.world(b.cells[i].s - CELL * 0.6, 0), e = b.world(b.cells[j - 1].s + CELL * 0.6, 0);
+      runs.push([{ x: a.x, z: a.z }, ...sm, { x: e.x, z: e.z }]);
+      i = j;
+    }
+    this.r.setLive(0, runs, [0.95, 0.16, 0.1, 1], 4.5, 6);
+    // Germans still holding trenches behind that line
+    const pockets: P[][] = [];
+    for (const s of b.secs) {
+      const c = b.cells[s.cell];
+      if (this.owner(s.id, t) || front[s.cell] < 0 || s.depth > front[s.cell] - 25 || s.depth < c.w - 5) continue;
+      // only where the British are actually into the German position close by, not just lying out in front of it
+      let near = false; for (let q = Math.max(0, s.cell - 2); q <= Math.min(n - 1, s.cell + 2); q++) if (holds[q]) near = true;
+      if (!near) continue;
+      if (rec.gar[m0 * rec.nSec + s.id] >= 2) pockets.push(...paths[s.id]);
+    }
+    this.r.setPockets(pockets);
     // battalion centres
     for (const p of this.bnPos) { p.x = 0; p.z = 0; p.men = 0; }
     for (const c of b.strips) {
