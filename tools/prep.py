@@ -12,6 +12,13 @@ def h(lat, lon):
     return float(dem[i, j]*(1-fr)*(1-fc) + dem[i, j+1]*(1-fr)*fc + dem[i+1, j]*fr*(1-fc) + dem[i+1, j+1]*fr*fc)
 
 g = json.load(open('data/geography_src.json'))
+# British front line and Thiepval Wood traced from the trench maps (tools/british.py)
+import os
+if os.path.exists('data/britishfront.json'):
+    bf = json.load(open('data/britishfront.json'))
+    g['britishFrontSketch'] = g['britishFront']; g['britishFront'] = bf['line']
+    for w in g['woods']:
+        if w['name'] == 'Thiepval Wood': w['poly'] = bf['thiepvalWood']
 # snap the Ancre: search across the valley (perpendicular to flow) for the lowest point within 250 m
 pts = g['ancre']; snapped = []
 for k, (la, lo) in enumerate(pts):
