@@ -6,7 +6,7 @@ import { Renderer, Camera, type Burst } from './render';
 import { Battle } from './battle';
 import { BattleView } from './battleview';
 import { loadSheet } from './closeground';
-import { shellBands } from './shelling';
+import { shellBands, bombardment } from './shelling';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -16,7 +16,10 @@ function boot() {
   const dem = new Dem();
   const { units, divs, corps } = buildUnits();
   const canvas = $('gl') as HTMLCanvasElement;
-  const r = new Renderer(canvas, dem, units);
+  // edge smoothing setting: kept in the address (#smooth=light) and, where allowed, in local storage
+  const hashQ = /smooth=(full|light|fast)/.exec(location.hash)?.[1];
+  let quality = hashQ ?? 'full'; if (!hashQ) try { quality = localStorage.getItem('smooth') ?? 'full'; } catch { /* no storage */ }
+  const r = new Renderer(canvas, dem, units, quality);
   const cam = new Camera(dem);
   const battle = new Battle(units, divs); battle.begin();
   const bv = new BattleView(battle, r, units);
@@ -65,7 +68,7 @@ function boot() {
   const rnd = Math.random;
   const ground = (x: number, z: number) => dem.height(x, z);
   const shell = (x: number, z: number, big: number, german: boolean) => {
-    const y = ground(x, z); big *= Math.max(1, cam.dist / 3500);
+    const y = ground(x, z);                     // drawn at true size: no longer enlarged when zoomed out
     r.bursts.push({ x, y: y + 4, z, size: 30 * big, r: 1, g: 0.8, b: 0.45, a: 1, vy: 0, grow: -60, life: 0.18, age: 0, glow: true });
     const c = german ? 0.32 : 0.45;
     r.bursts.push({ x: x + (rnd() - 0.5) * 8, y: y + 10, z, size: 28 * big, r: c + 0.05, g: c, b: c - 0.03, a: 0.65, vy: 4 + rnd() * 4, grow: 18 * big, life: 3 + rnd() * 2, age: 0, glow: false });
@@ -77,26 +80,40 @@ function boot() {
     const q = at(p, s);
     return { x: q.x + (rnd() - 0.5) * spread - q.tz * (rnd() - 0.5) * spread, z: q.z + (rnd() - 0.5) * spread + q.tx * (rnd() - 0.5) * spread };
   };
-  const intensity = (tm: number) => ({
-    // British fire on the German front system: last morning of the bombardment, the intense hour, then lifting
-    bFront: tm < 6 * 60 + 25 ? 0.25 : tm < ZERO ? 1 : 0,
-    bDeep: tm < ZERO ? 0.2 : tm < 10 * 60 ? 0.9 * (1 - (tm - ZERO) / 200) + 0.2 : 0.15,
-    // German defensive barrage on no man's land and the British trenches
-    gNml: tm < 7 * 60 + 25 ? 0.05 : tm < 9 * 60 ? 0.9 : tm < 13 * 60 ? 0.45 : 0.2,
-    gBrit: tm < 7 * 60 + 25 ? 0.08 : tm < 10 * 60 ? 0.5 : 0.2,
-  });
+  // Shellfire follows the simulation, stretch by stretch: the German guns by each corps' German artillery
+  // over the day (Battle.gerArt: silent before zero, full within minutes of it, then by corps), on the British
+  // front and assembly trenches and on no man's land; the British bombardment by each division's weight
+  // (wire cut, garrison wrecked), on the German front system until zero and then lifting deeper.
+  const bomb = battle.cells.map(c => bombardment(c.div, c.corps));
   const effects = (dtReal: number) => {
     if (!playing && prevT === t) return;
-    const k = intensity(t), base = 70 * dtReal;           // bursts per real second at full intensity
-    const spawn = (rate: number, fn: () => void) => { let n = rate * base; while (n > 1 || rnd() < n) { fn(); n--; } };
-    const lift = Math.min(1, Math.max(0, (t - ZERO) / 120));
-    spawn(k.bFront, () => { const q = near(G, 120); shell(q.x, q.z, 1, false); });
-    spawn(k.bFront * 0.5, () => { const q = near(gSupport, 200); shell(q.x, q.z, 1.2, false); });
-    spawn(k.bDeep, () => { const q = near(lift > 0 ? (lift > 0.5 ? S2 : gSupport) : S2, 300); shell(q.x, q.z, 1.3, false); });
-    spawn(k.gNml, () => { const q = near(nml, 160); shell(q.x, q.z, 1, true); });
-    spawn(k.gBrit, () => { const q = near(Bf, 220); shell(q.x, q.z, 1.1, true); });
+    const cells = battle.cells, R = Math.max(600, cam.dist * 1.5);
+    let c0 = 0, bd = Infinity; cells.forEach((c, i) => { const d = Math.hypot(c.bx - cam.tx, c.bz - cam.tz); if (d < bd) { bd = d; c0 = i; } });
+    const span = Math.ceil(R / 100), lo = Math.max(0, c0 - span), hi = Math.min(cells.length - 1, c0 + span);
+    const pick = () => cells[lo + Math.floor(rnd() * (hi - lo + 1))];
+    const pos = (c: typeof cells[0], d: number, spread: number) => { const a = (rnd() - 0.5) * 100, e = (rnd() - 0.5) * spread; return { x: c.bx - c.az * a + c.ax * (d + e), z: c.bz + c.ax * a + c.az * (d + e) }; };
+    const tries = (n: number, fn: () => void) => { let k = n; while (k > 1 || rnd() < k) { fn(); k--; } };
+    const base = 70 * dtReal;
+    // German guns
+    tries(base * 1.4, () => {
+      const c = pick(), A = battle.gerArt(c, t); if (rnd() >= A) return;
+      const onTrenches = t < ZERO + 10 ? 0.85 : 0.5;
+      const q = rnd() < onTrenches ? pos(c, -60 - rnd() * 180, 60) : pos(c, 30 + rnd() * Math.max(10, c.w - 60), 20);
+      shell(q.x, q.z, 1.1, true);
+    });
+    // British guns
+    const lift = (t - ZERO) / 60;               // hours since zero
+    tries(base * 1.2, () => {
+      const c = pick(), I = 0.25 + 0.75 * bomb[c.i];
+      let k: number, d: number;
+      if (t < 6 * 60 + 25) { k = 0.25; d = c.w + rnd() * 450; }
+      else if (t < ZERO) { k = 1; d = c.w - 20 + rnd() * 470; }
+      else { k = Math.max(0.12, 0.9 - lift * 0.35); d = c.w + 300 + Math.min(1600, (t - ZERO) * 12) + (rnd() - 0.5) * 300; }
+      if (rnd() >= k * I) return;
+      const q = pos(c, d, 30); shell(q.x, q.z, 1.2, false);
+    });
     // Very lights at night
-    if (t > 21 * 60 + 40) spawn(0.06, () => { const q = near(nml, 300); r.bursts.push({ x: q.x, y: ground(q.x, q.z) + 60, z: q.z, size: 14, r: 1, g: 1, b: 0.85, a: 1, vy: 8, grow: 0, life: 5, age: 0, glow: true }); });
+    if (t > 21 * 60 + 40) tries(0.06 * base, () => { const q = near(nml, 300); r.bursts.push({ x: q.x, y: ground(q.x, q.z) + 60, z: q.z, size: 14, r: 1, g: 1, b: 0.85, a: 1, vy: 8, grow: 0, life: 5, age: 0, glow: true }); });
   };
   const mineBlast = (m: typeof mines[0]) => {
     const { x, z } = m.p, y = ground(x, z), big = Math.max(0.4, Math.sqrt((m.charge_lb || 8000) / 40000));
@@ -298,6 +315,11 @@ function boot() {
     else if (v) { const c = corpsByName.get(v)!; fly(c.x, c.z, 6500); showCorps(c.name); }
   };
   $('b-help').onclick = () => $('help').classList.toggle('hidden');
+  { const sel = document.createElement('select'); sel.id = 'smooth'; sel.title = 'Edge smoothing (reloads the page)';
+    for (const [v, t] of [['full', 'Smoothing: full'], ['light', 'Smoothing: light'], ['fast', 'Smoothing: fast']]) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }
+    sel.value = quality; $('b-help').before(sel);
+    sel.onchange = () => { try { localStorage.setItem('smooth', sel.value); } catch { /* no storage */ } location.hash = 'smooth=' + sel.value; location.reload(); };
+  }
   $('b-map').onclick = () => {
     r.mapOpacity = r.mapOpacity > 0 ? 0 : 0.85; $('b-map').classList.toggle('on', r.mapOpacity > 0);
     if (r.mapOpacity > 0) { if (!sheetReady) toast('The 1916 map is still loading'); fly(-2350, 150, 2600); toast('1:5000 trench map, Schwaben Redoubt and Thiepval (trenches corrected to 20 October 1916)'); }

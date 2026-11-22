@@ -5,6 +5,8 @@ import { createProgram, uniforms } from './render/gl';
 import { mat4, perspective, lookAt, multiply, invert, transformPoint, clamp } from './core/math';
 import { GEO, Dem, toXZ, toLL, pts, resample, offsetAway, type P, type LL } from './geo';
 import type { Battalion } from './units';
+import roadData from '../data/roads.json';
+import buildingData from '../data/buildings.json';
 import { trenchRuns, styled, insideSheets, SHEETS, FIRE, type Run } from './trenches';
 
 const TEX = 4096;
@@ -275,8 +277,12 @@ export class Renderer {
   /** fixed lines in local metres, kept for other modules */
   lines: Record<string, P[]> = {};
 
-  constructor(public canvas: HTMLCanvasElement, private dem: Dem, units: Battalion[]) {
-    const gl = canvas.getContext('webgl2', { antialias: true });
+  /** edge smoothing: 'full' multisampling at full resolution; 'light' none; 'fast' none, at three-quarter resolution */
+  static readonly QUALITY: Record<string, { aa: boolean; scale: number }> = { full: { aa: true, scale: 1 }, light: { aa: false, scale: 1 }, fast: { aa: false, scale: 0.75 } };
+  private resScale = 1;
+  constructor(public canvas: HTMLCanvasElement, private dem: Dem, units: Battalion[], quality = 'full') {
+    const Q = Renderer.QUALITY[quality] ?? Renderer.QUALITY.full; this.resScale = Q.scale;
+    const gl = canvas.getContext('webgl2', { antialias: Q.aa });
     if (!gl) throw new Error('This browser does not support WebGL2.');
     this.gl = gl;
     gl.getExtension('OES_texture_float_linear');
@@ -293,6 +299,7 @@ export class Renderer {
     this.buildTerrain();
     this.buildTexture();
     this.buildTrenchMesh();
+    this.buildScenery();
     this.buildRibbons();
     this.buildBlocks(units);
     this.dyn = this.makeBlockBuffer();
@@ -396,8 +403,9 @@ export class Renderer {
     for (const r of GEO.roads) { poly(r.pts, false); g.strokeStyle = '#d9cfae'; g.lineWidth = m(9); g.stroke(); }
     // villages: ruined houses round the centre
     for (const v of GEO.places) {
-      const [cx, cy] = P(v.ll), big = v.name === 'Albert' ? 2.4 : 1;
+      const [cx, cy] = P(v.ll), big = v.name === 'Albert' ? 2.4 : 1, vp = toXZ(v.ll), traced = insideSheets(vp.x, vp.z);
       for (let k = 0; k < 70 * big; k++) {
+        if (traced) { rnd(); rnd(); rnd(); rnd(); rnd(); rnd(); continue; }       // drawn in 3D from the trench maps
         const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * m(260 * big);
         g.fillStyle = v.side === 'german' ? (rnd() < 0.5 ? '#8a7f70' : '#a2917c') : (rnd() < 0.5 ? '#8c7466' : '#9f8a76');
         g.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, m(12 + rnd() * 14), m(10 + rnd() * 12));
@@ -600,9 +608,117 @@ export class Renderer {
   private buildTrenchMesh(box?: number[]) {
     const runs = this.trenchSet(), fire = runs.filter(r => r.kind === FIRE).map(styled), comm = runs.filter(r => r.kind !== FIRE).map(styled);
     const v: number[] = [];
+    // roads traced from the trench maps: pale chalk tracks, main roads wider; trenches are drawn over them
+    const roads = (roadData.roads as unknown as { kind: string; p: [number, number][] }[]).map(r => ({ main: r.kind === 'main', p: resample(r.p.map(([x, z]) => ({ x, z })), 6) }));
+    this.strips(v, roads.filter(r => r.main).map(r => r.p), 3.6, [0.8, 0.77, 0.66, 1], box);
+    this.strips(v, roads.filter(r => !r.main).map(r => r.p), 2.6, [0.78, 0.75, 0.64, 1], box);
     this.strips(v, comm, 2.3, [0.72, 0.68, 0.58, 1], box); this.strips(v, fire, 3.4, [0.74, 0.7, 0.6, 1], box);    // chalk spoil
     this.strips(v, comm, 0.8, [0.25, 0.2, 0.16, 1], box); this.strips(v, fire, 1.1, [0.22, 0.17, 0.13, 1], box);   // the cut
     this.trMesh = this.stripMesh(this.trMesh, v);
+  }
+  // ---------- scenery: buildings traced from the trench maps, trees along the main roads and round villages ----------
+  private scenery: { vao: WebGLVertexArrayObject; n: number } | null = null;
+  private buildScenery() {
+    const gl = this.gl, v: number[] = [], dem = this.dem, B = resample(this.lines.british, 50), G = resample(this.lines.german, 50);
+    if (!this.pC) { this.pC = createProgram(gl, CRATER_VS, CRATER_FS); this.uC = uniforms(gl, this.pC, ['uVP', 'uSun', 'uSunCol', 'uSky', 'uCam', 'uFog', 'uFogDen']); }
+    let seed = 4242; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const dmin = (p: P[], x: number, z: number) => { let d = Infinity; for (const q of p) d = Math.min(d, (q.x - x) ** 2 + (q.z - z) ** 2); return Math.sqrt(d); };
+    /** 0 untouched .. 1 wrecked: the German side near the front, and no man's land, were shelled to pieces */
+    const damage = (x: number, z: number) => {
+      const dg = dmin(G, x, z), db = dmin(B, x, z);
+      if (dg < db) return Math.max(0, Math.min(1, 1.15 - dg / 2600));             // German side
+      return Math.max(0, Math.min(0.6, 0.6 - (db - 150) / 1200));                 // British side, near the front
+    };
+    let ctr: number[] | null = null;          // when set, faces are turned to look away from this point
+    const tri = (a: number[], b: number[], c: number[], col: number[]) => {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
+      let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx; const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
+      if (ctr) { const mx = (a[0] + b[0] + c[0]) / 3 - ctr[0], my = (a[1] + b[1] + c[1]) / 3 - ctr[1], mz = (a[2] + b[2] + c[2]) / 3 - ctr[2]; if (nx * mx + ny * my + nz * mz < 0) { nx = -nx; ny = -ny; nz = -nz; } }
+      else if (ny < -0.01) { nx = -nx; ny = -ny; nz = -nz; }
+      for (const p of [a, b, c]) v.push(p[0], p[1], p[2], nx, ny, nz, ...col);
+    };
+    const quad = (a: number[], b: number[], c: number[], d: number[], col: number[]) => { tri(a, b, c, col); tri(a, c, d, col); };
+    // buildings: each traced block filled with houses along its main axis, gaps left for yards and gardens
+    const inPoly = (x: number, z: number, p: [number, number][]) => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const [xi, zi] = p[i], [xj, zj] = p[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
+    const house = (x: number, z: number, ux: number, uz: number, len: number, wid: number, base: number, dmg: number) => {
+      const vx = -uz, vz = ux, hl = len / 2, hw = wid / 2;
+      const C = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([a, b]) => [x + ux * a + vx * b, z + uz * a + vz * b]);
+      ctr = [x, base + 2, z];
+      if (dmg > 0.4 && rnd() < Math.min(1, 0.35 + dmg * 0.75)) {
+        // a ruin: broken walls a metre or three high, rubble inside
+        const hs = C.map(() => 0.4 + rnd() * 2.8 * (1.25 - dmg)), wall = [0.62, 0.57, 0.52, 1];
+        for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; if (rnd() < 0.2) continue; quad([C[i][0], base, C[i][1]], [C[j][0], base, C[j][1]], [C[j][0], base + hs[j], C[j][1]], [C[i][0], base + hs[i], C[i][1]], wall); }
+        ctr = [x, base - 50, z]; const ry = base + 0.9; quad([C[0][0], ry, C[0][1]], [C[1][0], ry, C[1][1]], [C[2][0], ry, C[2][1]], [C[3][0], ry, C[3][1]], [0.6, 0.55, 0.48, 1]);
+        return;
+      }
+      const H = 4.5 + rnd() * 3, R = H + 2.2 + rnd(), sh = 0.85 + rnd() * 0.25;
+      const wall = [0.76 * sh, 0.66 * sh, 0.55 * sh, 1], roof = rnd() < 0.7 ? [0.6 * sh, 0.3 * sh, 0.24 * sh, 1] : [0.42 * sh, 0.42 * sh, 0.45 * sh, 1];
+      for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad([C[i][0], base, C[i][1]], [C[j][0], base, C[j][1]], [C[j][0], base + H, C[j][1]], [C[i][0], base + H, C[i][1]], wall); }
+      const r0 = [x - ux * hl, base + R, z - uz * hl], r1 = [x + ux * hl, base + R, z + uz * hl];
+      ctr = [x, base + H, z];
+      quad([C[0][0], base + H, C[0][1]], [C[1][0], base + H, C[1][1]], r1, r0, roof); quad([C[3][0], base + H, C[3][1]], [C[2][0], base + H, C[2][1]], r1, r0, roof);
+      tri([C[0][0], base + H, C[0][1]], [C[3][0], base + H, C[3][1]], r0, wall); tri([C[1][0], base + H, C[1][1]], [C[2][0], base + H, C[2][1]], r1, wall);
+    };
+    for (const bd of buildingData.buildings as unknown as { p: [number, number][] }[]) {
+      const p = bd.p; if (p.length < 3) continue;
+      let cx = 0, cz = 0; for (const [x, z] of p) { cx += x; cz += z; } cx /= p.length; cz /= p.length;
+      let sxx = 0, szz = 0, sxz = 0, area = 0;
+      for (let i = 0; i < p.length; i++) { const [x1, z1] = p[i], [x2, z2] = p[(i + 1) % p.length]; area += x1 * z2 - x2 * z1; const dx = x1 - cx, dz = z1 - cz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
+      area = Math.abs(area) / 2;
+      const th = 0.5 * Math.atan2(2 * sxz, sxx - szz), ux = Math.cos(th), uz = Math.sin(th), vx = -uz, vz = ux;
+      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+      for (const [x, z] of p) { const a = (x - cx) * ux + (z - cz) * uz, b = (x - cx) * vx + (z - cz) * vz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+      const base = Math.min(...p.map(([x, z]) => dem.height(x, z))) - 0.6, dmg = damage(cx, cz);
+      if (area < 140 || (a1 - a0) < 14 || (b1 - b0) < 10) { house(cx + ux * (a0 + a1) / 2 + vx * (b0 + b1) / 2, cz + uz * (a0 + a1) / 2 + vz * (b0 + b1) / 2, ux, uz, Math.max(6, (a1 - a0) * 0.85), Math.max(5, (b1 - b0) * 0.85), base, dmg); continue; }
+      // terraces: houses 8 m wide along the street side of the block, a second row where the block is deep
+      for (let a = a0 + 4.5; a < a1 - 3; a += 8.5) for (let b = b0 + 4.5; b < b1 - 3; b += 11) {
+        const x = cx + ux * a + vx * b, z = cz + uz * a + vz * b;
+        if (!inPoly(x, z, p) || rnd() < 0.18) continue;
+        house(x, z, vx, vz, 9.5, 7.8, base, dmg);
+      }
+    }
+    // trees: crowns of eight faces on a trunk; shattered stumps where the ground was shelled
+    const tree = (x: number, z: number, h: number, r: number) => {
+      const y = dem.height(x, z), dmg = damage(x, z), trunk = [0.3, 0.25, 0.2, 1]; ctr = [x, y + h * 0.3, z];
+      if (dmg > 0.5 && rnd() < dmg) {                                            // a splintered stump
+        const sh = h * (0.25 + 0.4 * rnd()), w = 0.35;
+        quad([x - w, y, z], [x + w, y, z], [x + w, y + sh, z], [x - w, y + sh * 0.8, z], trunk);
+        quad([x, y, z - w], [x, y, z + w], [x, y + sh * 0.9, z + w], [x, y + sh, z - w], trunk);
+        return;
+      }
+      const w = 0.3; quad([x - w, y, z], [x + w, y, z], [x + w, y + h * 0.5, z], [x - w, y + h * 0.5, z], trunk);
+      ctr = [x, y + h * 0.62, z];
+      const cy = y + h * 0.62, g = 0.8 + 0.35 * rnd(), col = [0.36 * g, 0.48 * g, 0.24 * g, 1];
+      const top = [x, cy + r * 1.1, z], bot = [x, cy - r * 0.9, z], ring = [0, 1, 2, 3].map(k => { const a = k * Math.PI / 2 + rnd() * 0.5; return [x + Math.cos(a) * r, cy, z + Math.sin(a) * r]; });
+      for (let k = 0; k < 4; k++) { const a = ring[k], b = ring[(k + 1) % 4]; tri(a, b, top, col); tri(b, a, bot, [col[0] * 0.75, col[1] * 0.75, col[2] * 0.75, 1]); }
+    };
+    // lines of trees along the main roads
+    for (const r of roadData.roads as unknown as { kind: string; p: [number, number][] }[]) {
+      if (r.kind !== 'main') continue;
+      const q = resample(r.p.map(([x, z]) => ({ x, z })), 11);
+      for (let i = 1; i < q.length; i++) {
+        const a = q[i - 1], b = q[i], dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L * 7, nz = dx / L * 7;
+        if (rnd() < 0.85) tree(a.x + nx, a.z + nz, 13 + rnd() * 6, 3.6 + rnd() * 1.8);
+        if (rnd() < 0.85) tree(a.x - nx, a.z - nz, 13 + rnd() * 6, 3.6 + rnd() * 1.8);
+      }
+    }
+    // orchards and hedgerow trees round the villages the maps cover
+    const bl = buildingData.buildings as unknown as { p: [number, number][] }[];
+    for (const pl of GEO.places) {
+      const c = toXZ(pl.ll); if (!insideSheets(c.x, c.z)) continue;
+      const near = bl.filter(b => Math.hypot(b.p[0][0] - c.x, b.p[0][1] - c.z) < 500); if (!near.length) continue;
+      const n = pl.name === 'Albert' ? 60 : 140;
+      for (let k = 0; k < n; k++) {
+        const h = near[Math.floor(rnd() * near.length)].p[0], a = rnd() * 6.283, rr = 25 + rnd() * 90;
+        tree(h[0] + Math.cos(a) * rr, h[1] + Math.sin(a) * rr, 7 + rnd() * 4, 3.2 + rnd() * 1.4);
+      }
+    }
+    ctr = null;
+    const vao = gl.createVertexArray()!, buf = gl.createBuffer()!;
+    gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+    for (const [loc, size, off] of [[0, 3, 0], [1, 3, 3], [2, 4, 6]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 40, off * 4); }
+    gl.bindVertexArray(null);
+    this.scenery = { vao, n: v.length / 10 };
   }
   // ---------- mine craters ----------
   private pC!: WebGLProgram; private uC!: Record<string, WebGLUniformLocation | null>;
@@ -719,7 +835,7 @@ export class Renderer {
   // ---------- frame ----------
   render(cam: Camera, light: { sun: number[]; sunCol: number[]; sky: number[]; fog: number[] }, decals: number[], dt: number) {
     const gl = this.gl, cv = this.canvas;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2), W = Math.round(cv.clientWidth * dpr), H = Math.round(cv.clientHeight * dpr);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2) * this.resScale, W = Math.round(cv.clientWidth * dpr), H = Math.round(cv.clientHeight * dpr);
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     cam.update(dt, W, H);
     gl.viewport(0, 0, W, H);
@@ -741,6 +857,14 @@ export class Renderer {
     this.craterMesh?.parts.forEach((p, i) => { if (i < 8 && this.craterOn[i]) holes.set(p.hole, i * 4); });
     gl.uniform4fv(this.uT.uHoles, holes);
     gl.bindVertexArray(this.terrain.vao); gl.drawElements(gl.TRIANGLES, this.terrain.n, this.terrain.type, 0);
+    if (this.scenery?.n && cam.dist < 14000) {
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(this.pC); gl.uniformMatrix4fv(this.uC.uVP, false, cam.vp);
+      gl.uniform3fv(this.uC.uSun, light.sun); gl.uniform3fv(this.uC.uSunCol, light.sunCol); gl.uniform3fv(this.uC.uSky, light.sky);
+      gl.uniform3f(this.uC.uCam, cam.ex, cam.ey, cam.ez); gl.uniform3fv(this.uC.uFog, light.fog); gl.uniform1f(this.uC.uFogDen, 0.6 / (cam.dist * 3 + 8000));
+      gl.bindVertexArray(this.scenery.vao); gl.drawArrays(gl.TRIANGLES, 0, this.scenery.n);
+      gl.enable(gl.CULL_FACE);
+    }
     if (this.craterMesh && this.craterOn.some(Boolean)) {
       gl.disable(gl.CULL_FACE); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.useProgram(this.pC); gl.uniformMatrix4fv(this.uC.uVP, false, cam.vp);
