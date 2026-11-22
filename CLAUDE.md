@@ -41,8 +41,7 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 - Not done: wire belts in front of German (and British) lines.
 - The 57D.SE screenshots miss a strip between St Pierre Divion and Thiepval Wood; `tools/trenches.py` fills it from the 1:5000 sheet.
 - Needs the owner: a late-June sheet for Gommecourt (56th Division's new forward trench), a Montauban sheet.
-- Better height data: IGN RGE ALTI 1 m (by département; Somme is D080) or MNT LiDAR HD 0.5 m (1 km tiles), both free under Licence Ouverte. Network access is off here, so the owner would need to download and attach it.
-- Known limit: 30 m DEM smooths Y Ravine, the Sunken Lane and the Thiepval ravines.
+- Fine terrain (22 Nov): `tools/rgealti.py <folder of .asc tiles>` → `src/finedem.ts`, a 5 m grid from IGN RGE ALTI 5 m (Licence Ouverte) over `BOX` (Beaumont Hamel/Y Ravine to Ovillers, Thiepval central), blended into the coarse grid over the last 150 m. `Dem.height()` uses it inside the box; the renderer draws it as its own mesh in 1 km blocks and the coarse terrain discards inside the box (`uFineBox`). The owner has the Somme (D080) tiles 0665–0690 × 6985–7010 (not in git: too big); Pas-de-Calais (D062) still to come for Gommecourt–Serre. Elsewhere the coarse grid is still Copernicus 30 m, 2×2 averaged (~60 m).
 
 ## Commits
 End commit messages with the attribution lines the session asks for.
