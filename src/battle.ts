@@ -294,7 +294,7 @@ export class Battle {
       case ST.assault: return 0.3;
       case ST.pinned: return K.pinnedExp;
       case ST.retire: return c.depth <= 0 ? 0.1 : this.t > 21 * 60 + 15 ? 0.08 : 0.8;
-      case ST.hold: case ST.mop: return 0.012;
+      case ST.hold: case ST.mop: return this.t > 21 * 60 + 15 ? 0.0012 : 0.012;   // after dark, as for men falling back
       case ST.wait: return c.creepAt !== null && this.t >= c.creepAt && c.depth > 0 ? 0.25 : 0;
       default: return 0;
     }
@@ -411,6 +411,19 @@ export class Battle {
 
     // loss rate (EMA over ~1 minute)
     for (const c of strips) { const l = (this.prevMen.get(c.id) ?? c.men) - c.men; const r = c.men > 0.5 ? l / (c.men + l) / dt : 0; c.rate += (r - c.rate) * Math.min(1, dt / 1); this.prevMen.set(c.id, c.men); }
+    // at dusk: in a stretch still held in the German lines, the scattered survivors of broken-up companies gather
+    // into one holding party (the men are moved, not lost), drawing in the fragments lying out in front of it
+    // (from within two stretches either side, in the same division), so a held toehold is shown with its men
+    if (t >= 21 * 60 + 15) for (const cell of cells) {
+      const owned = cell.secs.map(id => secs[id]).filter(o => o.owner); if (!owned.length) continue;
+      const frag = strips.filter(c => Math.abs(c.cell - cell.i) <= 2 && c.div === cell.div && c.state === ST.spent && c.men > 0.5 && c.depth > 0);
+      const here = strips.find(c => c.cell === cell.i && c.div === cell.div && c.state === ST.spent && c.men > 0.5 && this.inGerman(c)) ?? frag.find(c => c.cell === cell.i);
+      if (!here || frag.length < 2) continue;
+      for (const c of frag) if (c !== here) { const m = c.men; here.men += m; here.men0 += m; c.men0 -= m; c.men = 0; this.prevMen.set(c.id, 0); }   // men0 moves too: casualties unchanged
+      this.prevMen.set(here.id, here.men);
+      const h = owned[0];   // they hold the nearest captured trench
+      if (here.men > 2) { here.state = ST.hold; here.sec = h.id; here.depth = h.depth; }
+    }
     // strip decisions and movement
     const night = t > 21 * 60 + 20;
     for (const c of strips) {
