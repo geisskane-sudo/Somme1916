@@ -45,6 +45,13 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 - Roads by eye: `MANUAL` in tools/roads.py (Mill Road, Thiepval Road). Rubble size per village: `VILLAGE_R` in render.ts. Schwaben Redoubt label from the 1:5000 sheet.
 - Ancre water ribbon (`WATER_FS`), churned no man's land (shelling.ts bands + shader tint), brighter night, Very lights from dusk. Intro screen removed; key under "?"; Go to menu groups divisions under corps. `offsetAway` is side-stable and loop-free (`untangle`).
 
+## 24 Nov, from the owner's research photos (refs/research)
+- Events: Osprey timings for Beaumont Hamel (r1) and Montauban (r4), German counter-attacks from the German regimental maps (r2 Schwaben, r6 Granatloch) in data/events.json; 30th Division keyframes now 10:30 Montauban, 12:34 Briqueterie. Hawthorn mine 40,600 lb; Kasino Point 07:27, 5,000 lb.
+- Close-up labels (`minor` features): the 36th Division's Ulster-named objectives from r9, placed by a homography on the printed square numbers (tools/ulster.py, ~15 m fit error); Hammerhead Sap from its trench-map reference R.25.a.6.3; Hawthorn Redoubt.
+- Counter-attack arrows (main.ts `CA`, live ribbon slot 1) while each was under way. Mouquet Farm buildings from the British rough plan (r3).
+- Night positions checked against the Osprey 'Somme at nightfall' map (r8): all divisions agree.
+- Not done: British communication trenches in Thiepval Wood (r7 has no usable grid); Montauban–Maricourt trenches (owner does not want trenches off the trench maps).
+
 ## Next steps
 - Done 22 Nov: German front ribbon from the trace; fire/communication trench styles; captured trenches on the real trenches; whole-front close-up; shell holes from the record; thin company lines up close.
 - Not done: wire belts in front of German (and British) lines.

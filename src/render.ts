@@ -781,7 +781,17 @@ export class Renderer {
       quad([C[0][0], base + H, C[0][1]], [C[1][0], base + H, C[1][1]], r1, r0, roof); quad([C[3][0], base + H, C[3][1]], [C[2][0], base + H, C[2][1]], r1, r0, roof);
       tri([C[0][0], base + H, C[0][1]], [C[3][0], base + H, C[3][1]], r0, wall); tri([C[1][0], base + H, C[1][1]], [C[2][0], base + H, C[2][1]], r1, wall);
     };
-    for (const bd of buildingData.buildings as unknown as { p: [number, number][] }[]) {
+    // Mouquet Farm from the British 'Rough plan of the Farm du Mouquet' (owner's research): an L of brick buildings,
+    // the living house by the Grandcourt road and a two-storey house by the Thiepval road; metres from the farm
+    // (x east, z south), length, width, angle of the long side
+    const extra: { p: [number, number][] }[] = [];
+    { const mf = GEO.features.find(f => f.name === 'Mouquet Farm');
+      if (mf) { const c = toXZ(mf.ll);
+        for (const [x, z, L, W, a] of [[-17, 5, 57, 7, 66], [9, 24, 31, 7, -22], [-14, -34, 30, 9, -20], [-32, 40, 12, 8, -22]]) {
+          const ux = Math.cos(a * Math.PI / 180), uz = Math.sin(a * Math.PI / 180), vx = -uz, vz = ux;
+          extra.push({ p: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([s, t]) => [c.x + x + ux * s * L / 2 + vx * t * W / 2, c.z + z + uz * s * L / 2 + vz * t * W / 2]) as [number, number][] });
+        } } }
+    for (const bd of [...(buildingData.buildings as unknown as { p: [number, number][] }[]), ...extra]) {
       const p = bd.p; if (p.length < 3) continue;
       let cx = 0, cz = 0; for (const [x, z] of p) { cx += x; cz += z; } cx /= p.length; cz /= p.length;
       let sxx = 0, szz = 0, sxz = 0, area = 0;

@@ -1,161 +1,1791 @@
 {
-  "_note": "Positions [lat, lon], WGS84. Lines are approximate: traced from NLS trench-map screenshots (refs/nls) and anchored on fixed points from CWGC and Wikipedia (see anchors). The Ancre is snapped to the valley floor of the elevation data at build time. Montauban-Maricourt sector is drawn without a trench map.",
-  "anchors": [
-    { "name": "Gommecourt (village)", "ll": [50.1408, 2.6461], "src": "Wikipedia" },
-    { "name": "Gommecourt Wood New Cemetery (between the lines)", "ll": [50.14339, 2.63949], "src": "CWGC" },
-    { "name": "Gommecourt British Cemetery No.2 (no man's land, 56th Div)", "ll": [50.12991, 2.65008], "src": "CWGC" },
-    { "name": "Railway Hollow Cemetery (British support line, Serre)", "ll": [50.10602, 2.65549], "src": "CWGC" },
-    { "name": "Serre Road Cemetery No.1", "ll": [50.09989, 2.65729], "src": "CWGC" },
-    { "name": "Hawthorn Ridge Redoubt (mine)", "ll": [50.08339, 2.65015], "src": "Wikipedia" },
-    { "name": "Newfoundland Memorial (British front line)", "ll": [50.07391, 2.64837], "src": "CWGC" },
-    { "name": "Ulster Tower (German front line)", "ll": [50.0612, 2.6803], "src": "aroundus" },
-    { "name": "Connaught Cemetery (edge of Thiepval Wood)", "ll": [50.059, 2.68065], "src": "CWGC" },
-    { "name": "Thiepval Memorial", "ll": [50.05081, 2.68569], "src": "CWGC" },
-    { "name": "Lonsdale Cemetery (British front line, Leipzig)", "ll": [50.04003, 2.68246], "src": "CWGC" },
-    { "name": "Ovillers Military Cemetery", "ll": [50.02841, 2.69196], "src": "CWGC" },
-    { "name": "Lochnagar crater", "ll": [50.0156, 2.69736], "src": "aroundus" },
-    { "name": "Gordon Dump Cemetery (Sausage Valley)", "ll": [50.02056, 2.70735], "src": "CWGC" },
-    { "name": "Fricourt New Military Cemetery", "ll": [50.00119, 2.70811], "src": "CWGC" },
-    { "name": "Devonshire Cemetery (British front line, Mansel Copse)", "ll": [49.9886, 2.73556], "src": "CWGC / Wikipedia" },
-    { "name": "Carnoy Military Cemetery", "ll": [49.98221, 2.75494], "src": "CWGC" }
+ "_note": "Positions [lat, lon], WGS84. Lines are approximate: traced from NLS trench-map screenshots (refs/nls) and anchored on fixed points from CWGC and Wikipedia (see anchors). The Ancre is snapped to the valley floor of the elevation data at build time. Montauban-Maricourt sector is drawn without a trench map.",
+ "anchors": [
+  {
+   "name": "Gommecourt (village)",
+   "ll": [
+    50.1408,
+    2.6461
+   ],
+   "src": "Wikipedia"
+  },
+  {
+   "name": "Gommecourt Wood New Cemetery (between the lines)",
+   "ll": [
+    50.14339,
+    2.63949
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Gommecourt British Cemetery No.2 (no man's land, 56th Div)",
+   "ll": [
+    50.12991,
+    2.65008
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Railway Hollow Cemetery (British support line, Serre)",
+   "ll": [
+    50.10602,
+    2.65549
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Serre Road Cemetery No.1",
+   "ll": [
+    50.09989,
+    2.65729
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Hawthorn Ridge Redoubt (mine)",
+   "ll": [
+    50.08339,
+    2.65015
+   ],
+   "src": "Wikipedia"
+  },
+  {
+   "name": "Newfoundland Memorial (British front line)",
+   "ll": [
+    50.07391,
+    2.64837
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Ulster Tower (German front line)",
+   "ll": [
+    50.0612,
+    2.6803
+   ],
+   "src": "aroundus"
+  },
+  {
+   "name": "Connaught Cemetery (edge of Thiepval Wood)",
+   "ll": [
+    50.059,
+    2.68065
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Thiepval Memorial",
+   "ll": [
+    50.05081,
+    2.68569
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Lonsdale Cemetery (British front line, Leipzig)",
+   "ll": [
+    50.04003,
+    2.68246
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Ovillers Military Cemetery",
+   "ll": [
+    50.02841,
+    2.69196
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Lochnagar crater",
+   "ll": [
+    50.0156,
+    2.69736
+   ],
+   "src": "aroundus"
+  },
+  {
+   "name": "Gordon Dump Cemetery (Sausage Valley)",
+   "ll": [
+    50.02056,
+    2.70735
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Fricourt New Military Cemetery",
+   "ll": [
+    50.00119,
+    2.70811
+   ],
+   "src": "CWGC"
+  },
+  {
+   "name": "Devonshire Cemetery (British front line, Mansel Copse)",
+   "ll": [
+    49.9886,
+    2.73556
+   ],
+   "src": "CWGC / Wikipedia"
+  },
+  {
+   "name": "Carnoy Military Cemetery",
+   "ll": [
+    49.98221,
+    2.75494
+   ],
+   "src": "CWGC"
+  }
+ ],
+ "britishFront": [
+  [
+   50.16,
+   2.633
   ],
-  "britishFront": [
-    [50.1600, 2.6330], [50.1500, 2.6342], [50.1440, 2.6362], [50.1400, 2.6332], [50.1352, 2.6372],
-    [50.1312, 2.6438], [50.1272, 2.6488], [50.1232, 2.6522], [50.1180, 2.6545], [50.1120, 2.6568],
-    [50.1070, 2.6585], [50.1020, 2.6570], [50.0990, 2.6545], [50.0950, 2.6510], [50.0900, 2.6482],
-    [50.0845, 2.6466], [50.0800, 2.6468], [50.0760, 2.6474], [50.0739, 2.6484], [50.0705, 2.6505],
-    [50.0682, 2.6558], [50.0668, 2.6640], [50.0664, 2.6700], [50.0650, 2.6735], [50.0620, 2.6762],
-    [50.0590, 2.6790], [50.0555, 2.6795], [50.0500, 2.6797], [50.0440, 2.6815], [50.0400, 2.6825],
-    [50.0360, 2.6838], [50.0320, 2.6862], [50.0284, 2.6905], [50.0245, 2.6895], [50.0205, 2.6890],
-    [50.0170, 2.6915], [50.0140, 2.6935], [50.0100, 2.6965], [50.0050, 2.7005], [50.0000, 2.7040],
-    [49.9935, 2.7062], [49.9890, 2.7140], [49.9872, 2.7270], [49.9880, 2.7356], [49.9872, 2.7450],
-    [49.9858, 2.7550], [49.9858, 2.7650], [49.9852, 2.7750], [49.9858, 2.7880]
+  [
+   50.15,
+   2.6342
   ],
-  "germanFront": [
-    [50.1600, 2.6420], [50.1500, 2.6392], [50.1460, 2.6402], [50.1430, 2.6390], [50.1395, 2.6372],
-    [50.1365, 2.6410], [50.1335, 2.6462], [50.1300, 2.6505], [50.1260, 2.6548], [50.1210, 2.6578],
-    [50.1150, 2.6602], [50.1100, 2.6612], [50.1060, 2.6612], [50.1000, 2.6597], [50.0960, 2.6572],
-    [50.0935, 2.6545], [50.0890, 2.6522], [50.0834, 2.6502], [50.0790, 2.6515], [50.0750, 2.6525],
-    [50.0715, 2.6535], [50.0692, 2.6580], [50.0682, 2.6650], [50.0690, 2.6720], [50.0698, 2.6765],
-    [50.0640, 2.6790], [50.0612, 2.6803], [50.0585, 2.6835], [50.0555, 2.6845], [50.0505, 2.6850],
-    [50.0465, 2.6855], [50.0418, 2.6860], [50.0398, 2.6888], [50.0365, 2.6905], [50.0320, 2.6950],
-    [50.0285, 2.6968], [50.0245, 2.6962], [50.0218, 2.6950], [50.0185, 2.6965], [50.0156, 2.6974],
-    [50.0125, 2.7012], [50.0085, 2.7042], [50.0040, 2.7062], [49.9990, 2.7080], [49.9932, 2.7102],
-    [49.9902, 2.7200], [49.9895, 2.7300], [49.9905, 2.7360], [49.9910, 2.7450], [49.9895, 2.7560],
-    [49.9888, 2.7600], [49.9890, 2.7700], [49.9900, 2.7800], [49.9900, 2.7880]
+  [
+   50.144,
+   2.6362
   ],
-  "germanSecond": [
-    [50.1450, 2.6750], [50.1300, 2.6800], [50.1170, 2.6810], [50.1050, 2.6800], [50.0950, 2.6720],
-    [50.0865, 2.6671], [50.0820, 2.6790], [50.0790, 2.6880], [50.0730, 2.6990], [50.0690, 2.7060],
-    [50.0620, 2.7080], [50.0540, 2.7085], [50.0465, 2.7080], [50.0410, 2.7150], [50.0370, 2.7230],
-    [50.0330, 2.7330], [50.0300, 2.7450], [50.0275, 2.7650], [50.0262, 2.7850], [50.0250, 2.8100],
-    [50.0230, 2.8400]
+  [
+   50.14,
+   2.6332
   ],
-  "frenchSector": [[49.9858, 2.7880], [49.9800, 2.8000], [49.9700, 2.8100], [49.9600, 2.8150]],
-  "ancre": [
-    [50.0920, 2.7350], [50.0860, 2.7200], [50.0820, 2.7050], [50.0790, 2.6930], [50.0770, 2.6840],
-    [50.0730, 2.6760], [50.0690, 2.6710], [50.0640, 2.6680], [50.0580, 2.6650], [50.0520, 2.6640],
-    [50.0460, 2.6635], [50.0400, 2.6625], [50.0330, 2.6610], [50.0270, 2.6595], [50.0200, 2.6575],
-    [50.0130, 2.6550], [50.0060, 2.6510], [49.9990, 2.6460], [49.9920, 2.6400], [49.9850, 2.6320],
-    [49.9780, 2.6250], [49.9700, 2.6180]
+  [
+   50.1352,
+   2.6372
   ],
-  "roads": [
-    { "name": "Albert-Bapaume road", "pts": [[50.0030, 2.6520], [50.0120, 2.6740], [50.0218, 2.6965], [50.0300, 2.7110], [50.0370, 2.7230], [50.0480, 2.7420], [50.0600, 2.7620], [50.0700, 2.7800]] },
-    { "name": "Mailly-Serre-Puisieux road", "pts": [[50.0780, 2.6030], [50.0880, 2.6250], [50.0960, 2.6430], [50.1000, 2.6573], [50.1030, 2.6660], [50.1100, 2.6820], [50.1170, 2.6950]] },
-    { "name": "Albert-Fricourt-Maricourt road", "pts": [[50.0030, 2.6520], [49.9990, 2.6800], [49.9950, 2.7100], [49.9900, 2.7300], [49.9878, 2.7400], [49.9850, 2.7600], [49.9811, 2.7858]] },
-    { "name": "Thiepval-Hamel road", "pts": [[50.0553, 2.6897], [50.0590, 2.6830], [50.0640, 2.6760], [50.0680, 2.6700], [50.0705, 2.6620]] }
+  [
+   50.1312,
+   2.6438
   ],
-  "places": [
-    { "name": "Foncquevillers", "ll": [50.1478, 2.6297], "side": "british" },
-    { "name": "Gommecourt", "ll": [50.1408, 2.6461], "side": "german" },
-    { "name": "Hébuterne", "ll": [50.1230, 2.6360], "side": "british" },
-    { "name": "Puisieux", "ll": [50.1170, 2.6950], "side": "german" },
-    { "name": "Serre", "ll": [50.1030, 2.6660], "side": "german" },
-    { "name": "Colincamps", "ll": [50.0980, 2.6100], "side": "british" },
-    { "name": "Auchonvillers", "ll": [50.0806, 2.6290], "side": "british" },
-    { "name": "Mailly-Maillet", "ll": [50.0780, 2.6030], "side": "british" },
-    { "name": "Beaumont-Hamel", "ll": [50.0840, 2.6572], "side": "german" },
-    { "name": "Beaucourt", "ll": [50.0815, 2.6855], "side": "german" },
-    { "name": "Hamel", "ll": [50.0705, 2.6620], "side": "british" },
-    { "name": "Mesnil", "ll": [50.0560, 2.6560], "side": "british" },
-    { "name": "St Pierre-Divion", "ll": [50.0700, 2.6790], "side": "german" },
-    { "name": "Grandcourt", "ll": [50.0790, 2.7150], "side": "german" },
-    { "name": "Thiepval", "ll": [50.0553, 2.6897], "side": "german" },
-    { "name": "Authuille", "ll": [50.0420, 2.6680], "side": "british" },
-    { "name": "Aveluy", "ll": [50.0270, 2.6560], "side": "british" },
-    { "name": "Ovillers", "ll": [50.0310, 2.7000], "side": "german" },
-    { "name": "La Boisselle", "ll": [50.0218, 2.6965], "side": "german" },
-    { "name": "Pozières", "ll": [50.0370, 2.7230], "side": "german" },
-    { "name": "Contalmaison", "ll": [50.0270, 2.7350], "side": "german" },
-    { "name": "Albert", "ll": [50.0030, 2.6520], "side": "british" },
-    { "name": "Bécourt", "ll": [50.0040, 2.6870], "side": "british" },
-    { "name": "Fricourt", "ll": [49.9975, 2.7155], "side": "german" },
-    { "name": "Mametz", "ll": [49.9960, 2.7390], "side": "german" },
-    { "name": "Carnoy", "ll": [49.9850, 2.7530], "side": "british" },
-    { "name": "Montauban", "ll": [50.0072, 2.7800], "side": "german" },
-    { "name": "Maricourt", "ll": [49.9811, 2.7858], "side": "british" },
-    { "name": "Longueval", "ll": [50.0260, 2.7950], "side": "german" }
+  [
+   50.1272,
+   2.6488
   ],
-  "features": [
-    { "name": "Schwaben Redoubt", "ll": [50.0632, 2.6845] },
-    { "name": "Leipzig Salient", "ll": [50.0420, 2.6870] },
-    { "name": "Quadrilateral", "ll": [50.0935, 2.6560] },
-    { "name": "Y Ravine", "ll": [50.0712, 2.6560] },
-    { "name": "Mouquet Farm", "ll": [50.0465, 2.7080] },
-    { "name": "Stuff Redoubt", "ll": [50.0620, 2.7085] },
-    { "name": "Sausage Redoubt", "ll": [50.0125, 2.7020] },
-    { "name": "Pommiers Redoubt", "ll": [49.9960, 2.7560] },
-    { "name": "Mash Valley", "ll": [50.0255, 2.6920] },
-    { "name": "Sausage Valley", "ll": [50.0120, 2.6960] }
+  [
+   50.1232,
+   2.6522
   ],
-  "woods": [
-    { "name": "Thiepval Wood", "poly": [[50.0640, 2.6700], [50.0620, 2.6775], [50.0560, 2.6790], [50.0530, 2.6750], [50.0560, 2.6690], [50.0610, 2.6680]] },
-    { "name": "Aveluy Wood", "poly": [[50.0560, 2.6470], [50.0560, 2.6590], [50.0450, 2.6610], [50.0330, 2.6580], [50.0320, 2.6470], [50.0440, 2.6440]] },
-    { "name": "Authuille Wood", "poly": [[50.0380, 2.6720], [50.0360, 2.6830], [50.0310, 2.6850], [50.0300, 2.6760], [50.0330, 2.6700]] },
-    { "name": "Gommecourt Park", "poly": [[50.1420, 2.6385], [50.1420, 2.6440], [50.1385, 2.6455], [50.1370, 2.6410], [50.1390, 2.6380]] },
-    { "name": "Mametz Wood", "poly": [[50.0280, 2.7510], [50.0270, 2.7620], [50.0200, 2.7630], [50.0170, 2.7560], [50.0220, 2.7500]] },
-    { "name": "Bernafay Wood", "poly": [[50.0100, 2.7930], [50.0095, 2.7990], [50.0050, 2.7990], [50.0055, 2.7930]] },
-    { "name": "Trônes Wood", "poly": [[50.0130, 2.8040], [50.0120, 2.8080], [50.0020, 2.8090], [50.0030, 2.8050]] }
+  [
+   50.118,
+   2.6545
   ],
-  "mines": [
-    { "name": "Hawthorn Ridge", "ll": [50.08339, 2.65015], "time": "07:20", "charge_lb": 40000, "crater_m": 40 },
-    { "name": "Y Sap", "ll": [50.0242, 2.6985], "time": "07:28", "charge_lb": 40000, "crater_m": 40 },
-    { "name": "Lochnagar", "ll": [50.0156, 2.69736], "time": "07:28", "charge_lb": 60000, "crater_m": 100 },
-    { "name": "Glory Hole (small charges)", "ll": [50.0215, 2.6945], "time": "07:28", "charge_lb": 0, "crater_m": 15 },
-    { "name": "Triple Tambour", "ll": [49.9990, 2.7085], "time": "07:28", "charge_lb": 49000, "crater_m": 30 },
-    { "name": "Bulgar Point", "ll": [49.9905, 2.7300], "time": "07:28", "charge_lb": 0, "crater_m": 20, "note": "position and time approximate" },
-    { "name": "Kasino Point", "ll": [49.9888, 2.7600], "time": "07:30", "charge_lb": 0, "crater_m": 25, "note": "fired late, after the infantry had left their trench" },
-    { "name": "Carnoy small charges", "ll": [49.9893, 2.7680], "time": "07:28", "charge_lb": 0, "crater_m": 10, "note": "stands for several small charges; positions not known" }
+  [
+   50.112,
+   2.6568
   ],
-  "germanUnits": [
-    { "name": "RIR 91", "ll": [50.1500, 2.6500] },
-    { "name": "RIR 55", "ll": [50.1380, 2.6520] },
-    { "name": "IR 170", "ll": [50.1260, 2.6620] },
-    { "name": "IR 169", "ll": [50.1040, 2.6700] },
-    { "name": "RIR 121", "ll": [50.0910, 2.6620] },
-    { "name": "RIR 119", "ll": [50.0790, 2.6610] },
-    { "name": "RIR 99", "ll": [50.0590, 2.6930] },
-    { "name": "IR 180", "ll": [50.0330, 2.7060] },
-    { "name": "RIR 110", "ll": [50.0160, 2.7110] },
-    { "name": "RIR 111", "ll": [49.9990, 2.7220] },
-    { "name": "RIR 109", "ll": [49.9960, 2.7460] },
-    { "name": "IR 62", "ll": [49.9990, 2.7760] }
+  [
+   50.107,
+   2.6585
   ],
-  "divisions": [
-    { "div": "46th (North Midland) Division", "from": [50.1520, 2.6340], "to": [50.1415, 2.6360], "lead": ["139th Brigade", "137th Brigade"], "support": ["138th Brigade"] },
-    { "div": "56th (London) Division", "from": [50.1330, 2.6410], "to": [50.1240, 2.6515], "lead": ["169th Brigade", "168th Brigade"], "support": ["167th Brigade"] },
-    { "div": "31st Division", "from": [50.1100, 2.6575], "to": [50.0990, 2.6545], "lead": ["94th Brigade", "93rd Brigade"], "support": ["92nd Brigade"] },
-    { "div": "4th Division", "from": [50.0990, 2.6545], "to": [50.0885, 2.6478], "lead": ["11th Brigade"], "support": ["10th Brigade", "12th Brigade"], "attached": ["1/6th Royal Warwicks", "1/8th Royal Warwicks"] },
-    { "div": "29th Division", "from": [50.0885, 2.6478], "to": [50.0690, 2.6530], "lead": ["86th Brigade", "87th Brigade"], "support": ["88th Brigade"] },
-    { "div": "36th (Ulster) Division", "from": [50.0678, 2.6600], "to": [50.0555, 2.6795], "lead": ["108th Brigade", "109th Brigade"], "support": ["107th Brigade"], "supportDepth": 380 },
-    { "div": "32nd Division", "from": [50.0555, 2.6795], "to": [50.0350, 2.6845], "lead": ["96th Brigade", "97th Brigade"], "support": ["14th Brigade"] },
-    { "div": "8th Division", "from": [50.0350, 2.6845], "to": [50.0230, 2.6893], "lead": ["70th Brigade", "25th Brigade", "23rd Brigade"], "support": [] },
-    { "div": "34th Division", "from": [50.0230, 2.6893], "to": [50.0080, 2.6980], "lead": ["102nd (Tyneside Scottish) Brigade", "101st Brigade"], "support": ["103rd (Tyneside Irish) Brigade"], "supportDepth": 1500 },
-    { "div": "21st Division", "from": [50.0080, 2.6980], "to": [49.9960, 2.7050], "lead": ["64th Brigade", "63rd Brigade"], "support": ["62nd Brigade"] },
-    { "div": "17th (Northern) Division", "from": [49.9960, 2.7050], "to": [49.9905, 2.7110], "lead": ["50th Brigade"], "support": [], "note": "50th Brigade only, attached to 21st Division, facing Fricourt" },
-    { "div": "7th Division", "from": [49.9905, 2.7110], "to": [49.9870, 2.7480], "lead": ["22nd Brigade", "20th Brigade", "91st Brigade"], "support": [] },
-    { "div": "18th (Eastern) Division", "from": [49.9870, 2.7480], "to": [49.9855, 2.7680], "lead": ["53rd Brigade", "54th Brigade", "55th Brigade"], "support": [] },
-    { "div": "30th Division", "from": [49.9855, 2.7680], "to": [49.9858, 2.7880], "lead": ["21st Brigade", "89th Brigade"], "support": ["90th Brigade"] }
+  [
+   50.102,
+   2.657
   ],
-  "_divisionsNote": "Brigade order is left to right as the attackers faced (north to south, or west to east in the south). Taken from the Companion maps where shown; 21st, 7th and 18th Division brigade order is approximate. 22nd Brigade (7th Division) did not attack until the afternoon."
+  [
+   50.099,
+   2.6545
+  ],
+  [
+   50.095,
+   2.651
+  ],
+  [
+   50.09,
+   2.6482
+  ],
+  [
+   50.0845,
+   2.6466
+  ],
+  [
+   50.08,
+   2.6468
+  ],
+  [
+   50.076,
+   2.6474
+  ],
+  [
+   50.0739,
+   2.6484
+  ],
+  [
+   50.0705,
+   2.6505
+  ],
+  [
+   50.0682,
+   2.6558
+  ],
+  [
+   50.0668,
+   2.664
+  ],
+  [
+   50.0664,
+   2.67
+  ],
+  [
+   50.065,
+   2.6735
+  ],
+  [
+   50.062,
+   2.6762
+  ],
+  [
+   50.059,
+   2.679
+  ],
+  [
+   50.0555,
+   2.6795
+  ],
+  [
+   50.05,
+   2.6797
+  ],
+  [
+   50.044,
+   2.6815
+  ],
+  [
+   50.04,
+   2.6825
+  ],
+  [
+   50.036,
+   2.6838
+  ],
+  [
+   50.032,
+   2.6862
+  ],
+  [
+   50.0284,
+   2.6905
+  ],
+  [
+   50.0245,
+   2.6895
+  ],
+  [
+   50.0205,
+   2.689
+  ],
+  [
+   50.017,
+   2.6915
+  ],
+  [
+   50.014,
+   2.6935
+  ],
+  [
+   50.01,
+   2.6965
+  ],
+  [
+   50.005,
+   2.7005
+  ],
+  [
+   50.0,
+   2.704
+  ],
+  [
+   49.9935,
+   2.7062
+  ],
+  [
+   49.989,
+   2.714
+  ],
+  [
+   49.9872,
+   2.727
+  ],
+  [
+   49.988,
+   2.7356
+  ],
+  [
+   49.9872,
+   2.745
+  ],
+  [
+   49.9858,
+   2.755
+  ],
+  [
+   49.9858,
+   2.765
+  ],
+  [
+   49.9852,
+   2.775
+  ],
+  [
+   49.9858,
+   2.788
+  ]
+ ],
+ "germanFront": [
+  [
+   50.16,
+   2.642
+  ],
+  [
+   50.15,
+   2.6392
+  ],
+  [
+   50.146,
+   2.6402
+  ],
+  [
+   50.143,
+   2.639
+  ],
+  [
+   50.1395,
+   2.6372
+  ],
+  [
+   50.1365,
+   2.641
+  ],
+  [
+   50.1335,
+   2.6462
+  ],
+  [
+   50.13,
+   2.6505
+  ],
+  [
+   50.126,
+   2.6548
+  ],
+  [
+   50.121,
+   2.6578
+  ],
+  [
+   50.115,
+   2.6602
+  ],
+  [
+   50.11,
+   2.6612
+  ],
+  [
+   50.106,
+   2.6612
+  ],
+  [
+   50.1,
+   2.6597
+  ],
+  [
+   50.096,
+   2.6572
+  ],
+  [
+   50.0935,
+   2.6545
+  ],
+  [
+   50.089,
+   2.6522
+  ],
+  [
+   50.0834,
+   2.6502
+  ],
+  [
+   50.079,
+   2.6515
+  ],
+  [
+   50.075,
+   2.6525
+  ],
+  [
+   50.0715,
+   2.6535
+  ],
+  [
+   50.0692,
+   2.658
+  ],
+  [
+   50.0682,
+   2.665
+  ],
+  [
+   50.069,
+   2.672
+  ],
+  [
+   50.0698,
+   2.6765
+  ],
+  [
+   50.064,
+   2.679
+  ],
+  [
+   50.0612,
+   2.6803
+  ],
+  [
+   50.0585,
+   2.6835
+  ],
+  [
+   50.0555,
+   2.6845
+  ],
+  [
+   50.0505,
+   2.685
+  ],
+  [
+   50.0465,
+   2.6855
+  ],
+  [
+   50.0418,
+   2.686
+  ],
+  [
+   50.0398,
+   2.6888
+  ],
+  [
+   50.0365,
+   2.6905
+  ],
+  [
+   50.032,
+   2.695
+  ],
+  [
+   50.0285,
+   2.6968
+  ],
+  [
+   50.0245,
+   2.6962
+  ],
+  [
+   50.0218,
+   2.695
+  ],
+  [
+   50.0185,
+   2.6965
+  ],
+  [
+   50.0156,
+   2.6974
+  ],
+  [
+   50.0125,
+   2.7012
+  ],
+  [
+   50.0085,
+   2.7042
+  ],
+  [
+   50.004,
+   2.7062
+  ],
+  [
+   49.999,
+   2.708
+  ],
+  [
+   49.9932,
+   2.7102
+  ],
+  [
+   49.9902,
+   2.72
+  ],
+  [
+   49.9895,
+   2.73
+  ],
+  [
+   49.9905,
+   2.736
+  ],
+  [
+   49.991,
+   2.745
+  ],
+  [
+   49.9895,
+   2.756
+  ],
+  [
+   49.9888,
+   2.76
+  ],
+  [
+   49.989,
+   2.77
+  ],
+  [
+   49.99,
+   2.78
+  ],
+  [
+   49.99,
+   2.788
+  ]
+ ],
+ "germanSecond": [
+  [
+   50.145,
+   2.675
+  ],
+  [
+   50.13,
+   2.68
+  ],
+  [
+   50.117,
+   2.681
+  ],
+  [
+   50.105,
+   2.68
+  ],
+  [
+   50.095,
+   2.672
+  ],
+  [
+   50.0865,
+   2.6671
+  ],
+  [
+   50.082,
+   2.679
+  ],
+  [
+   50.079,
+   2.688
+  ],
+  [
+   50.073,
+   2.699
+  ],
+  [
+   50.069,
+   2.706
+  ],
+  [
+   50.062,
+   2.708
+  ],
+  [
+   50.054,
+   2.7085
+  ],
+  [
+   50.0465,
+   2.708
+  ],
+  [
+   50.041,
+   2.715
+  ],
+  [
+   50.037,
+   2.723
+  ],
+  [
+   50.033,
+   2.733
+  ],
+  [
+   50.03,
+   2.745
+  ],
+  [
+   50.0275,
+   2.765
+  ],
+  [
+   50.0262,
+   2.785
+  ],
+  [
+   50.025,
+   2.81
+  ],
+  [
+   50.023,
+   2.84
+  ]
+ ],
+ "frenchSector": [
+  [
+   49.9858,
+   2.788
+  ],
+  [
+   49.98,
+   2.8
+  ],
+  [
+   49.97,
+   2.81
+  ],
+  [
+   49.96,
+   2.815
+  ]
+ ],
+ "ancre": [
+  [
+   50.092,
+   2.735
+  ],
+  [
+   50.086,
+   2.72
+  ],
+  [
+   50.082,
+   2.705
+  ],
+  [
+   50.079,
+   2.693
+  ],
+  [
+   50.077,
+   2.684
+  ],
+  [
+   50.073,
+   2.676
+  ],
+  [
+   50.069,
+   2.671
+  ],
+  [
+   50.064,
+   2.668
+  ],
+  [
+   50.058,
+   2.665
+  ],
+  [
+   50.052,
+   2.664
+  ],
+  [
+   50.046,
+   2.6635
+  ],
+  [
+   50.04,
+   2.6625
+  ],
+  [
+   50.033,
+   2.661
+  ],
+  [
+   50.027,
+   2.6595
+  ],
+  [
+   50.02,
+   2.6575
+  ],
+  [
+   50.013,
+   2.655
+  ],
+  [
+   50.006,
+   2.651
+  ],
+  [
+   49.999,
+   2.646
+  ],
+  [
+   49.992,
+   2.64
+  ],
+  [
+   49.985,
+   2.632
+  ],
+  [
+   49.978,
+   2.625
+  ],
+  [
+   49.97,
+   2.618
+  ]
+ ],
+ "roads": [
+  {
+   "name": "Albert-Bapaume road",
+   "pts": [
+    [
+     50.003,
+     2.652
+    ],
+    [
+     50.012,
+     2.674
+    ],
+    [
+     50.0218,
+     2.6965
+    ],
+    [
+     50.03,
+     2.711
+    ],
+    [
+     50.037,
+     2.723
+    ],
+    [
+     50.048,
+     2.742
+    ],
+    [
+     50.06,
+     2.762
+    ],
+    [
+     50.07,
+     2.78
+    ]
+   ]
+  },
+  {
+   "name": "Mailly-Serre-Puisieux road",
+   "pts": [
+    [
+     50.078,
+     2.603
+    ],
+    [
+     50.088,
+     2.625
+    ],
+    [
+     50.096,
+     2.643
+    ],
+    [
+     50.1,
+     2.6573
+    ],
+    [
+     50.103,
+     2.666
+    ],
+    [
+     50.11,
+     2.682
+    ],
+    [
+     50.117,
+     2.695
+    ]
+   ]
+  },
+  {
+   "name": "Albert-Fricourt-Maricourt road",
+   "pts": [
+    [
+     50.003,
+     2.652
+    ],
+    [
+     49.999,
+     2.68
+    ],
+    [
+     49.995,
+     2.71
+    ],
+    [
+     49.99,
+     2.73
+    ],
+    [
+     49.9878,
+     2.74
+    ],
+    [
+     49.985,
+     2.76
+    ],
+    [
+     49.9811,
+     2.7858
+    ]
+   ]
+  },
+  {
+   "name": "Thiepval-Hamel road",
+   "pts": [
+    [
+     50.0553,
+     2.6897
+    ],
+    [
+     50.059,
+     2.683
+    ],
+    [
+     50.064,
+     2.676
+    ],
+    [
+     50.068,
+     2.67
+    ],
+    [
+     50.0705,
+     2.662
+    ]
+   ]
+  }
+ ],
+ "places": [
+  {
+   "name": "Foncquevillers",
+   "ll": [
+    50.1478,
+    2.6297
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Gommecourt",
+   "ll": [
+    50.1408,
+    2.6461
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Hébuterne",
+   "ll": [
+    50.123,
+    2.636
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Puisieux",
+   "ll": [
+    50.117,
+    2.695
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Serre",
+   "ll": [
+    50.103,
+    2.666
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Colincamps",
+   "ll": [
+    50.098,
+    2.61
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Auchonvillers",
+   "ll": [
+    50.0806,
+    2.629
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Mailly-Maillet",
+   "ll": [
+    50.078,
+    2.603
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Beaumont-Hamel",
+   "ll": [
+    50.084,
+    2.6572
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Beaucourt",
+   "ll": [
+    50.0815,
+    2.6855
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Hamel",
+   "ll": [
+    50.0705,
+    2.662
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Mesnil",
+   "ll": [
+    50.056,
+    2.656
+   ],
+   "side": "british"
+  },
+  {
+   "name": "St Pierre-Divion",
+   "ll": [
+    50.07,
+    2.679
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Grandcourt",
+   "ll": [
+    50.079,
+    2.715
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Thiepval",
+   "ll": [
+    50.0553,
+    2.6897
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Authuille",
+   "ll": [
+    50.042,
+    2.668
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Aveluy",
+   "ll": [
+    50.027,
+    2.656
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Ovillers",
+   "ll": [
+    50.031,
+    2.7
+   ],
+   "side": "german"
+  },
+  {
+   "name": "La Boisselle",
+   "ll": [
+    50.0218,
+    2.6965
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Pozières",
+   "ll": [
+    50.037,
+    2.723
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Contalmaison",
+   "ll": [
+    50.027,
+    2.735
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Albert",
+   "ll": [
+    50.003,
+    2.652
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Bécourt",
+   "ll": [
+    50.004,
+    2.687
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Fricourt",
+   "ll": [
+    49.9975,
+    2.7155
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Mametz",
+   "ll": [
+    49.996,
+    2.739
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Carnoy",
+   "ll": [
+    49.985,
+    2.753
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Montauban",
+   "ll": [
+    50.0072,
+    2.78
+   ],
+   "side": "german"
+  },
+  {
+   "name": "Maricourt",
+   "ll": [
+    49.9811,
+    2.7858
+   ],
+   "side": "british"
+  },
+  {
+   "name": "Longueval",
+   "ll": [
+    50.026,
+    2.795
+   ],
+   "side": "german"
+  }
+ ],
+ "features": [
+  {
+   "name": "Schwaben Redoubt",
+   "ll": [
+    50.0632,
+    2.6845
+   ]
+  },
+  {
+   "name": "Leipzig Salient",
+   "ll": [
+    50.042,
+    2.687
+   ]
+  },
+  {
+   "name": "Quadrilateral",
+   "ll": [
+    50.0935,
+    2.656
+   ]
+  },
+  {
+   "name": "Y Ravine",
+   "ll": [
+    50.0712,
+    2.656
+   ]
+  },
+  {
+   "name": "Mouquet Farm",
+   "ll": [
+    50.0465,
+    2.708
+   ]
+  },
+  {
+   "name": "Stuff Redoubt",
+   "ll": [
+    50.062,
+    2.7085
+   ]
+  },
+  {
+   "name": "Sausage Redoubt",
+   "ll": [
+    50.0125,
+    2.702
+   ]
+  },
+  {
+   "name": "Pommiers Redoubt",
+   "ll": [
+    49.996,
+    2.756
+   ]
+  },
+  {
+   "name": "Mash Valley",
+   "ll": [
+    50.0255,
+    2.692
+   ]
+  },
+  {
+   "name": "Sausage Valley",
+   "ll": [
+    50.012,
+    2.696
+   ]
+  }
+ ],
+ "woods": [
+  {
+   "name": "Thiepval Wood",
+   "poly": [
+    [
+     50.064,
+     2.67
+    ],
+    [
+     50.062,
+     2.6775
+    ],
+    [
+     50.056,
+     2.679
+    ],
+    [
+     50.053,
+     2.675
+    ],
+    [
+     50.056,
+     2.669
+    ],
+    [
+     50.061,
+     2.668
+    ]
+   ]
+  },
+  {
+   "name": "Aveluy Wood",
+   "poly": [
+    [
+     50.056,
+     2.647
+    ],
+    [
+     50.056,
+     2.659
+    ],
+    [
+     50.045,
+     2.661
+    ],
+    [
+     50.033,
+     2.658
+    ],
+    [
+     50.032,
+     2.647
+    ],
+    [
+     50.044,
+     2.644
+    ]
+   ]
+  },
+  {
+   "name": "Authuille Wood",
+   "poly": [
+    [
+     50.038,
+     2.672
+    ],
+    [
+     50.036,
+     2.683
+    ],
+    [
+     50.031,
+     2.685
+    ],
+    [
+     50.03,
+     2.676
+    ],
+    [
+     50.033,
+     2.67
+    ]
+   ]
+  },
+  {
+   "name": "Gommecourt Park",
+   "poly": [
+    [
+     50.142,
+     2.6385
+    ],
+    [
+     50.142,
+     2.644
+    ],
+    [
+     50.1385,
+     2.6455
+    ],
+    [
+     50.137,
+     2.641
+    ],
+    [
+     50.139,
+     2.638
+    ]
+   ]
+  },
+  {
+   "name": "Mametz Wood",
+   "poly": [
+    [
+     50.028,
+     2.751
+    ],
+    [
+     50.027,
+     2.762
+    ],
+    [
+     50.02,
+     2.763
+    ],
+    [
+     50.017,
+     2.756
+    ],
+    [
+     50.022,
+     2.75
+    ]
+   ]
+  },
+  {
+   "name": "Bernafay Wood",
+   "poly": [
+    [
+     50.01,
+     2.793
+    ],
+    [
+     50.0095,
+     2.799
+    ],
+    [
+     50.005,
+     2.799
+    ],
+    [
+     50.0055,
+     2.793
+    ]
+   ]
+  },
+  {
+   "name": "Trônes Wood",
+   "poly": [
+    [
+     50.013,
+     2.804
+    ],
+    [
+     50.012,
+     2.808
+    ],
+    [
+     50.002,
+     2.809
+    ],
+    [
+     50.003,
+     2.805
+    ]
+   ]
+  }
+ ],
+ "mines": [
+  {
+   "name": "Hawthorn Ridge",
+   "ll": [
+    50.08339,
+    2.65015
+   ],
+   "time": "07:20",
+   "charge_lb": 40600,
+   "crater_m": 40,
+   "note": "laid by 252 Tunnelling Company RE under Hawthorn Redoubt"
+  },
+  {
+   "name": "Y Sap",
+   "ll": [
+    50.0242,
+    2.6985
+   ],
+   "time": "07:28",
+   "charge_lb": 40000,
+   "crater_m": 40
+  },
+  {
+   "name": "Lochnagar",
+   "ll": [
+    50.0156,
+    2.69736
+   ],
+   "time": "07:28",
+   "charge_lb": 60000,
+   "crater_m": 100
+  },
+  {
+   "name": "Glory Hole (small charges)",
+   "ll": [
+    50.0215,
+    2.6945
+   ],
+   "time": "07:28",
+   "charge_lb": 0,
+   "crater_m": 15
+  },
+  {
+   "name": "Triple Tambour",
+   "ll": [
+    49.999,
+    2.7085
+   ],
+   "time": "07:28",
+   "charge_lb": 49000,
+   "crater_m": 30
+  },
+  {
+   "name": "Bulgar Point",
+   "ll": [
+    49.9905,
+    2.73
+   ],
+   "time": "07:28",
+   "charge_lb": 0,
+   "crater_m": 20,
+   "note": "position and time approximate"
+  },
+  {
+   "name": "Kasino Point",
+   "ll": [
+    49.9888,
+    2.76
+   ],
+   "time": "07:27",
+   "charge_lb": 5000,
+   "crater_m": 25
+  },
+  {
+   "name": "Carnoy small charges",
+   "ll": [
+    49.9893,
+    2.768
+   ],
+   "time": "07:28",
+   "charge_lb": 0,
+   "crater_m": 10,
+   "note": "stands for several small charges; positions not known"
+  }
+ ],
+ "germanUnits": [
+  {
+   "name": "RIR 91",
+   "ll": [
+    50.15,
+    2.65
+   ]
+  },
+  {
+   "name": "RIR 55",
+   "ll": [
+    50.138,
+    2.652
+   ]
+  },
+  {
+   "name": "IR 170",
+   "ll": [
+    50.126,
+    2.662
+   ]
+  },
+  {
+   "name": "IR 169",
+   "ll": [
+    50.104,
+    2.67
+   ]
+  },
+  {
+   "name": "RIR 121",
+   "ll": [
+    50.091,
+    2.662
+   ]
+  },
+  {
+   "name": "RIR 119",
+   "ll": [
+    50.079,
+    2.661
+   ]
+  },
+  {
+   "name": "RIR 99",
+   "ll": [
+    50.059,
+    2.693
+   ]
+  },
+  {
+   "name": "IR 180",
+   "ll": [
+    50.033,
+    2.706
+   ]
+  },
+  {
+   "name": "RIR 110",
+   "ll": [
+    50.016,
+    2.711
+   ]
+  },
+  {
+   "name": "RIR 111",
+   "ll": [
+    49.999,
+    2.722
+   ]
+  },
+  {
+   "name": "RIR 109",
+   "ll": [
+    49.996,
+    2.746
+   ]
+  },
+  {
+   "name": "IR 62",
+   "ll": [
+    49.999,
+    2.776
+   ]
+  }
+ ],
+ "divisions": [
+  {
+   "div": "46th (North Midland) Division",
+   "from": [
+    50.152,
+    2.634
+   ],
+   "to": [
+    50.1415,
+    2.636
+   ],
+   "lead": [
+    "139th Brigade",
+    "137th Brigade"
+   ],
+   "support": [
+    "138th Brigade"
+   ]
+  },
+  {
+   "div": "56th (London) Division",
+   "from": [
+    50.133,
+    2.641
+   ],
+   "to": [
+    50.124,
+    2.6515
+   ],
+   "lead": [
+    "169th Brigade",
+    "168th Brigade"
+   ],
+   "support": [
+    "167th Brigade"
+   ]
+  },
+  {
+   "div": "31st Division",
+   "from": [
+    50.11,
+    2.6575
+   ],
+   "to": [
+    50.099,
+    2.6545
+   ],
+   "lead": [
+    "94th Brigade",
+    "93rd Brigade"
+   ],
+   "support": [
+    "92nd Brigade"
+   ]
+  },
+  {
+   "div": "4th Division",
+   "from": [
+    50.099,
+    2.6545
+   ],
+   "to": [
+    50.0885,
+    2.6478
+   ],
+   "lead": [
+    "11th Brigade"
+   ],
+   "support": [
+    "10th Brigade",
+    "12th Brigade"
+   ],
+   "attached": [
+    "1/6th Royal Warwicks",
+    "1/8th Royal Warwicks"
+   ]
+  },
+  {
+   "div": "29th Division",
+   "from": [
+    50.0885,
+    2.6478
+   ],
+   "to": [
+    50.069,
+    2.653
+   ],
+   "lead": [
+    "86th Brigade",
+    "87th Brigade"
+   ],
+   "support": [
+    "88th Brigade"
+   ]
+  },
+  {
+   "div": "36th (Ulster) Division",
+   "from": [
+    50.0678,
+    2.66
+   ],
+   "to": [
+    50.0555,
+    2.6795
+   ],
+   "lead": [
+    "108th Brigade",
+    "109th Brigade"
+   ],
+   "support": [
+    "107th Brigade"
+   ],
+   "supportDepth": 380
+  },
+  {
+   "div": "32nd Division",
+   "from": [
+    50.0555,
+    2.6795
+   ],
+   "to": [
+    50.035,
+    2.6845
+   ],
+   "lead": [
+    "96th Brigade",
+    "97th Brigade"
+   ],
+   "support": [
+    "14th Brigade"
+   ]
+  },
+  {
+   "div": "8th Division",
+   "from": [
+    50.035,
+    2.6845
+   ],
+   "to": [
+    50.023,
+    2.6893
+   ],
+   "lead": [
+    "70th Brigade",
+    "25th Brigade",
+    "23rd Brigade"
+   ],
+   "support": []
+  },
+  {
+   "div": "34th Division",
+   "from": [
+    50.023,
+    2.6893
+   ],
+   "to": [
+    50.008,
+    2.698
+   ],
+   "lead": [
+    "102nd (Tyneside Scottish) Brigade",
+    "101st Brigade"
+   ],
+   "support": [
+    "103rd (Tyneside Irish) Brigade"
+   ],
+   "supportDepth": 1500
+  },
+  {
+   "div": "21st Division",
+   "from": [
+    50.008,
+    2.698
+   ],
+   "to": [
+    49.996,
+    2.705
+   ],
+   "lead": [
+    "64th Brigade",
+    "63rd Brigade"
+   ],
+   "support": [
+    "62nd Brigade"
+   ]
+  },
+  {
+   "div": "17th (Northern) Division",
+   "from": [
+    49.996,
+    2.705
+   ],
+   "to": [
+    49.9905,
+    2.711
+   ],
+   "lead": [
+    "50th Brigade"
+   ],
+   "support": [],
+   "note": "50th Brigade only, attached to 21st Division, facing Fricourt"
+  },
+  {
+   "div": "7th Division",
+   "from": [
+    49.9905,
+    2.711
+   ],
+   "to": [
+    49.987,
+    2.748
+   ],
+   "lead": [
+    "22nd Brigade",
+    "20th Brigade",
+    "91st Brigade"
+   ],
+   "support": []
+  },
+  {
+   "div": "18th (Eastern) Division",
+   "from": [
+    49.987,
+    2.748
+   ],
+   "to": [
+    49.9855,
+    2.768
+   ],
+   "lead": [
+    "53rd Brigade",
+    "54th Brigade",
+    "55th Brigade"
+   ],
+   "support": []
+  },
+  {
+   "div": "30th Division",
+   "from": [
+    49.9855,
+    2.768
+   ],
+   "to": [
+    49.9858,
+    2.788
+   ],
+   "lead": [
+    "21st Brigade",
+    "89th Brigade"
+   ],
+   "support": [
+    "90th Brigade"
+   ]
+  }
+ ],
+ "_divisionsNote": "Brigade order is left to right as the attackers faced (north to south, or west to east in the south). Taken from the Companion maps where shown; 21st, 7th and 18th Division brigade order is approximate. 22nd Brigade (7th Division) did not attack until the afternoon."
 }

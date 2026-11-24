@@ -28,6 +28,12 @@ if os.path.exists('data/mines_snap.json'):          # mines placed on their mode
     MS = json.load(open('data/mines_snap.json'))
     for m in g['mines']:
         if m['name'] in MS: m['ll'] = MS[m['name']]
+# named points close up: the 36th Division's Ulster-named objectives (tools/ulster.py) and trench-map references
+if os.path.exists('data/namedpoints.json'):
+    for n, ll in json.load(open('data/namedpoints.json')).items(): g['features'].append({'name': n, 'll': ll, 'minor': True})
+for f in g['features']:
+    if f['name'] == 'Schwaben Redoubt': f['name'] = 'Schwaben Redoubt (Feste Schwaben)'
+    if f['name'] == 'Leipzig Salient': f['name'] = 'Leipzig Salient (Granatloch quarry)'
 if os.path.exists('data/ancre.json'): g['ancre'] = json.load(open('data/ancre.json'))['line']
 if os.path.exists('data/woods.json'):
     WD = json.load(open('data/woods.json'))

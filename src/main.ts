@@ -74,6 +74,28 @@ async function boot() {
   for (const m of mines) evs.push({ t: m.t, text: `${m.name} mine blown${m.charge_lb ? ` (${m.charge_lb.toLocaleString()} lb of ammonal)` : ''}${m.note ? ' — ' + m.note : ''}`, x: m.p.x, z: m.p.z });
   evs.sort((a, b) => a.t - b.t);
 
+  // ---------------- German counter-attacks (from the German regimental maps in the owner's research) ----------------
+  // arrows shown while each counter-attack was under way; start and end points as offsets from named features
+  const feat = (n: string) => { const f = GEO.features.find(q => q.name.startsWith(n)) ?? GEO.places.find(q => q.name === n); return f ? toXZ(f.ll) : null; };
+  const CA: { t0: number; t1: number; from: [string, number, number]; to: [string, number, number] }[] = [
+    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Grandcourt', 0, 250], to: ['Schwaben Redoubt', 60, -220] },          // Gruppe Prager
+    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Stuff Redoubt', 0, 0], to: ['Schwaben Redoubt', 220, -60] },         // Gruppe Beyerköhler / Wurm, Bavarian R.8
+    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Mouquet Farm', -300, -350], to: ['Schwaben Redoubt', 200, 180] },    // Abteilung Lunau along the Auwärter-Weg
+    { t0: 9 * 60 + 15, t1: 12 * 60, from: ['Leipzig Salient', 700, -150], to: ['Leipzig Salient', 160, 0] },      // reserves into the Leipzig Salient
+  ];
+  const caArrows = (tm: number) => {
+    const out: P[][] = [];
+    for (const c of CA) {
+      if (tm < c.t0 || tm > c.t1) continue;
+      const a = feat(c.from[0]), b = feat(c.to[0]); if (!a || !b) continue;
+      const A = { x: a.x + c.from[1], z: a.z + c.from[2] }, B = { x: b.x + c.to[1], z: b.z + c.to[2] };
+      const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, h = 90;
+      out.push([A, B], [B, { x: B.x - ux * h - uz * h * 0.6, z: B.z - uz * h + ux * h * 0.6 }], [B, { x: B.x - ux * h + uz * h * 0.6, z: B.z - uz * h - ux * h * 0.6 }]);
+    }
+    return out;
+  };
+  let caKey = '';
+
   // ---------------- effects ----------------
   const rnd = Math.random;
   const ground = (x: number, z: number) => dem.height(x, z);
@@ -169,7 +191,7 @@ async function boot() {
   for (const c of corps) mk(c.name, 'corps', c.x, c.z, 7000, 1e9, 9, () => { fly(c.x, c.z, 6500); showCorps(c.name); });
   for (const d of divs) { const p = offsetPt(d.x, d.z, 900); mk(d.name.replace(' Division', ' Div').replace(/ \(.*?\)/, ''), 'div', p.x, p.z, 1500, 16000, 7, () => { fly(d.x, d.z, 3500); showDiv(d.name); }); }
   for (const p of GEO.places) { const q = toXZ(p.ll); mk(p.name, 'place ' + p.side, q.x, q.z, 0, 40000, 8); }
-  for (const f of GEO.features) { const q = toXZ(f.ll); mk(f.name, 'feat', q.x, q.z, 0, 6000, 6); }
+  for (const f of GEO.features) { const q = toXZ(f.ll); const minor = (f as { minor?: boolean }).minor; mk(f.name, minor ? 'feat minor' : 'feat', q.x, q.z, 0, minor ? 2600 : 6000, minor ? 3 : 6); }
   for (const g of GEO.germanUnits) { const q = toXZ(g.ll); mk(g.name, 'ger', q.x, q.z, 0, 9000, 5); }
   { // the 48th Division held the line between VII and VIII Corps and did not attack
     const gap = bv.holding.filter(c => c.corps === 'VIII Corps' || c.corps === 'VII Corps');
@@ -365,7 +387,8 @@ async function boot() {
     // mine craters once a mine has gone up
     const decals: number[] = [];
     mines.forEach((m, i) => (r.craterOn[i] = t >= m.t));
-    bv.draw(t, cam); moveBnLabels(); r.render(cam, light(t), decals, dt);
+    bv.draw(t, cam);
+    { const arr = caArrows(t), k = arr.length + ':' + Math.floor(t); if (k !== caKey) { caKey = k; r.setLive(1, arr, [0.28, 0.32, 0.26, 1], 5, 8); } } moveBnLabels(); r.render(cam, light(t), decals, dt);
     $('clock').textContent = `${hhmm(t)}`;
     const tot = bv.totals(t);
     $('score').innerHTML = t < 7 * 60 + 20 ? '' : `Casualties · British <b>${Math.round(tot.b).toLocaleString()}</b> · German <b>${Math.round(tot.g).toLocaleString()}</b>`;

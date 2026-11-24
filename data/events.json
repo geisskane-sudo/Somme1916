@@ -1,41 +1,326 @@
 {
-  "_source": "The Western Front Companion pp. 202-221 and Middlebrook appendices; mine count and Y Sap time from web sources (Wikipedia 'Mines on the first day of the Somme'). Times are 1 July 1916 unless stated.",
-  "mines": [
-    { "name": "Hawthorn Ridge Redoubt", "time": "07:20", "charge_lb": 40000, "sector": "VIII Corps, 29th Division", "effect": "Blown ten minutes early; warned the Germans (RIR 119); crater 130 ft across and 58 ft deep; Germans occupied the rim" },
-    { "name": "Y Sap", "time": "07:28", "charge_lb": 40000, "sector": "III Corps, 34th Division, north of La Boisselle" },
-    { "name": "Lochnagar", "time": "07:28", "charge_lb": 60000, "sector": "III Corps, 34th Division, south of La Boisselle (Schwaben Höhe)" },
-    { "name": "Glory Hole (small charges)", "time": "07:28", "sector": "III Corps, La Boisselle", "note": "no infantry attack directly here" },
-    { "name": "Triple Tambour (3 mines)", "time": "07:28", "charge_lb": 49000, "sector": "XV Corps, opposite Fricourt" },
-    { "name": "Bulgar Point", "time": "07:28?", "sector": "XV Corps, Mametz", "note": "time to confirm" },
-    { "name": "Kasino Point", "time": "about 07:30 (late)", "sector": "XIII Corps, 18th Division", "effect": "Fired after the infantry had left their trench; debris fell on the advancing men; destroyed the machine-gun post" }
-  ],
-  "minesTotal": "19 mines (8 large, 11 small) on the British front; the 11 small ones further south are not yet located",
-  "timeline": [
-    { "time": "06:25", "sector": "all", "event": "Final intense bombardment begins" },
-    { "time": "07:20", "sector": "VIII Corps", "event": "Hawthorn Ridge mine; VIII Corps heavy artillery lifts off the German front line" },
-    { "time": "07:20", "sector": "VII Corps", "event": "Smoke screen laid; 56th Division leading companies move into no man's land" },
-    { "time": "07:22", "sector": "XIII and XV Corps", "event": "Stokes mortar hurricane bombardment" },
-    { "time": "07:23", "sector": "X Corps", "event": "17th HLI creep forward towards the Leipzig Salient" },
-    { "time": "07:15", "sector": "X Corps", "event": "109th Brigade (36th Division) leaves its trenches and creeps forward (15 min before the lift)" },
-    { "time": "07:27", "sector": "XV Corps", "event": "Smoke screen on the inner flanks of the two attacking divisions" },
-    { "time": "07:28", "sector": "III and XV Corps", "event": "Lochnagar, Y Sap and Tambour mines" },
-    { "time": "07:30", "sector": "all", "event": "Zero hour" },
-    { "time": "08:00", "sector": "XV Corps", "event": "1st South Staffords in Cemetery Trench, outskirts of Mametz" },
-    { "time": "08:10", "sector": "VII Corps", "event": "46th Division fourth wave goes over as the smoke clears; checked by machine guns" },
-    { "time": "08:30", "sector": "X Corps", "event": "Schwaben Redoubt taken by 36th Division; 11th Border (32nd Division) caught moving up" },
-    { "time": "08:30", "sector": "XIII Corps", "event": "90th Brigade (30th Division) begins the advance on Montauban" },
-    { "time": "08:45", "sector": "X Corps", "event": "14th Brigade (1st Dorsets) advances on the Leipzig Redoubt" },
-    { "time": "09:00", "sector": "X Corps", "event": "107th Brigade moves towards the German second line" },
-    { "time": "09:30", "sector": "VIII Corps", "event": "29th Division attack has failed; 4th Division's 10th Brigade advance goes ahead though a halt order was sent" },
-    { "time": "10:00", "sector": "X Corps", "event": "107th Brigade within 100 yards of the Grandcourt line and Stuff Redoubt, caught by its own barrage" },
-    { "time": "12:00", "sector": "XIII Corps", "event": "30th Division's objectives including Montauban taken, about midday" },
-    { "time": "14:33", "sector": "XV Corps", "event": "50th Brigade (7th East Yorks, 7th Green Howards) attacks Fricourt after a weak bombardment; fails" },
-    { "time": "15:00", "sector": "XV Corps", "event": "7th Division's final effort; Mametz secured" },
-    { "time": "15:30", "sector": "XIII Corps", "event": "18th Division reaches White Trench" },
-    { "time": "16:33", "sector": "XV Corps", "event": "21st Division ordered to consolidate" },
-    { "time": "17:00", "sector": "XV Corps", "event": "7th Division reaches Bunny Alley-Fritz Trench (map notes say about 19:00)" },
-    { "time": "22:00", "sector": "X Corps", "event": "Heavier German counter-attacks force the 36th Division back from the Schwaben Redoubt" },
-    { "time": "22:30", "sector": "X Corps", "event": "Only about 750 yards of the German front line still held by the 36th Division" },
-    { "time": "2 July 11:30", "sector": "VIII Corps", "event": "Last company (1st Royal Irish Fusiliers) leaves the Quadrilateral" }
-  ]
+ "_source": "The Western Front Companion pp. 202-221 and Middlebrook appendices; mine count and Y Sap time from web sources (Wikipedia 'Mines on the first day of the Somme'). Times are 1 July 1916 unless stated.",
+ "mines": [
+  {
+   "name": "Hawthorn Ridge Redoubt",
+   "time": "07:20",
+   "charge_lb": 40000,
+   "sector": "VIII Corps, 29th Division",
+   "effect": "Blown ten minutes early; warned the Germans (RIR 119); crater 130 ft across and 58 ft deep; Germans occupied the rim"
+  },
+  {
+   "name": "Y Sap",
+   "time": "07:28",
+   "charge_lb": 40000,
+   "sector": "III Corps, 34th Division, north of La Boisselle"
+  },
+  {
+   "name": "Lochnagar",
+   "time": "07:28",
+   "charge_lb": 60000,
+   "sector": "III Corps, 34th Division, south of La Boisselle (Schwaben Höhe)"
+  },
+  {
+   "name": "Glory Hole (small charges)",
+   "time": "07:28",
+   "sector": "III Corps, La Boisselle",
+   "note": "no infantry attack directly here"
+  },
+  {
+   "name": "Triple Tambour (3 mines)",
+   "time": "07:28",
+   "charge_lb": 49000,
+   "sector": "XV Corps, opposite Fricourt"
+  },
+  {
+   "name": "Bulgar Point",
+   "time": "07:28?",
+   "sector": "XV Corps, Mametz",
+   "note": "time to confirm"
+  },
+  {
+   "name": "Kasino Point",
+   "time": "about 07:30 (late)",
+   "sector": "XIII Corps, 18th Division",
+   "effect": "Fired after the infantry had left their trench; debris fell on the advancing men; destroyed the machine-gun post"
+  }
+ ],
+ "minesTotal": "19 mines (8 large, 11 small) on the British front; the 11 small ones further south are not yet located",
+ "timeline": [
+  {
+   "time": "03:00",
+   "sector": "VIII Corps",
+   "event": "B and D Companies, 1st Lancashire Fusiliers, with four Stokes mortars, move by tunnel into the Sunken Lane in no man's land",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "06:25",
+   "sector": "all",
+   "event": "Final intense bombardment begins"
+  },
+  {
+   "time": "06:25",
+   "sector": "XIII Corps",
+   "event": "Hurricane bombardment of the German positions; the German headquarters in Glatz Redoubt already destroyed by howitzer fire",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:00",
+   "sector": "VIII Corps",
+   "event": "Germans shell the Sunken Lane and the British front line; the British bombardment is at its heaviest",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:15",
+   "sector": "X Corps",
+   "event": "109th Brigade (36th Division) leaves its trenches and creeps forward (15 min before the lift)"
+  },
+  {
+   "time": "07:15",
+   "sector": "XIII Corps",
+   "event": "Russian saps, tunnelled under no man's land to within 20 yards of the German front, are blown open; trench mortars open fire",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:20",
+   "sector": "VIII Corps",
+   "event": "Hawthorn Ridge mine; VIII Corps heavy artillery lifts off the German front line"
+  },
+  {
+   "time": "07:20",
+   "sector": "VII Corps",
+   "event": "Smoke screen laid; 56th Division leading companies move into no man's land"
+  },
+  {
+   "time": "07:20",
+   "sector": "VIII Corps",
+   "event": "Two platoons of 2nd Royal Fusiliers with four machine guns and four Stokes mortars rush the Hawthorn crater; hurricane mortar bombardment from the Sunken Lane",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:22",
+   "sector": "XIII and XV Corps",
+   "event": "Stokes mortar hurricane bombardment"
+  },
+  {
+   "time": "07:23",
+   "sector": "X Corps",
+   "event": "17th HLI creep forward towards the Leipzig Salient"
+  },
+  {
+   "time": "07:25",
+   "sector": "VIII Corps",
+   "event": "9th Company, Reserve Infantry Regiment 119, counter-attacks at the new Hawthorn crater",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:27",
+   "sector": "XV Corps",
+   "event": "Smoke screen on the inner flanks of the two attacking divisions"
+  },
+  {
+   "time": "07:28",
+   "sector": "III and XV Corps",
+   "event": "Lochnagar, Y Sap and Tambour mines"
+  },
+  {
+   "time": "07:30",
+   "sector": "all",
+   "event": "Zero hour"
+  },
+  {
+   "time": "07:30",
+   "sector": "VIII Corps",
+   "event": "1st Lancashire Fusiliers attack from the Sunken Lane and are cut down; only about 50 reach the dip in no man's land. 1st East Lancashires and 1st Hampshires find the wire largely uncut",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:30",
+   "sector": "VIII Corps",
+   "event": "2nd South Wales Borderers head for Y Ravine; few get within 100 yards of the German front line",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:30",
+   "sector": "XIII Corps",
+   "event": "Captain Nevill, 8th East Surreys, kicks off his company's advance with one of four footballs; a Livens flame projector clears the western edge of the Crater Field",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:40",
+   "sector": "XIII Corps",
+   "event": "Colonel Fairfax of the 17th King's goes forward arm in arm with Commandant Le Petit of the French 153rd Infantry Regiment",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "07:50",
+   "sector": "VIII Corps",
+   "event": "2nd Seaforth Highlanders and 2nd Royal Dublin Fusiliers halted by machine guns in no man's land",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "08:00",
+   "sector": "XV Corps",
+   "event": "1st South Staffords in Cemetery Trench, outskirts of Mametz"
+  },
+  {
+   "time": "08:00",
+   "sector": "VIII Corps",
+   "event": "16th Middlesex attack; fewer than 120 men reach the Hawthorn crater",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "08:05",
+   "sector": "VIII Corps",
+   "event": "1st Border Regiment attacks from the second-line trenches and suffers the same fate; C Company, 1st Lancashire Fusiliers, loses all but 50 men trying to reach the Sunken Lane",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "08:10",
+   "sector": "VII Corps",
+   "event": "46th Division fourth wave goes over as the smoke clears; checked by machine guns"
+  },
+  {
+   "time": "08:30",
+   "sector": "X Corps",
+   "event": "Schwaben Redoubt taken by 36th Division; 11th Border (32nd Division) caught moving up"
+  },
+  {
+   "time": "08:30",
+   "sector": "XIII Corps",
+   "event": "90th Brigade (30th Division) begins the advance on Montauban"
+  },
+  {
+   "time": "08:35",
+   "sector": "XIII Corps",
+   "event": "Advancing troops reach and capture Glatz Redoubt",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "08:45",
+   "sector": "X Corps",
+   "event": "14th Brigade (1st Dorsets) advances on the Leipzig Redoubt"
+  },
+  {
+   "time": "09:00",
+   "sector": "X Corps",
+   "event": "107th Brigade moves towards the German second line"
+  },
+  {
+   "time": "09:15",
+   "sector": "VIII Corps",
+   "event": "1st Newfoundland Regiment attacks from the third line and loses 710 men; few reach no man's land",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "09:30",
+   "sector": "VIII Corps",
+   "event": "29th Division attack has failed; 4th Division's 10th Brigade advance goes ahead though a halt order was sent"
+  },
+  {
+   "time": "09:30",
+   "sector": "XV Corps",
+   "event": "Pommiers Redoubt captured by the 18th Division after a fierce fight",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "09:30",
+   "sector": "X Corps",
+   "event": "Leipzig Salient: German reserves (13th Company and the recruit company of R.I.R. 99, and 3rd Company of Bavarian R.I.R. 8) come up through the Hindenburg and Hohenzollern trenches and hold the 32nd Division at the Granatloch (time approximate)",
+   "source": "German regimental maps reproduced in the owner's research"
+  },
+  {
+   "time": "10:00",
+   "sector": "X Corps",
+   "event": "107th Brigade within 100 yards of the Grandcourt line and Stuff Redoubt, caught by its own barrage"
+  },
+  {
+   "time": "10:00",
+   "sector": "XIII Corps",
+   "event": "British troops enter the western end of Train Alley",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "10:30",
+   "sector": "VIII Corps",
+   "event": "Under fierce counter-attack and short of ammunition, resistance in the Hawthorn crater collapses (about 10:30); survivors return to the British lines",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "10:30",
+   "sector": "XIII Corps",
+   "event": "Montauban village captured by the 30th Division",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "11:00",
+   "sector": "XIII Corps",
+   "event": "Montauban Alley reached north of the village; 16th Manchesters capture field guns of German Field Artillery Regiment 21",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "12:34",
+   "sector": "XIII Corps",
+   "event": "20th King's capture the Briqueterie (brickworks) after a bombardment",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "14:33",
+   "sector": "XV Corps",
+   "event": "50th Brigade (7th East Yorks, 7th Green Howards) attacks Fricourt after a weak bombardment; fails"
+  },
+  {
+   "time": "15:00",
+   "sector": "XV Corps",
+   "event": "7th Division's final effort; Mametz secured"
+  },
+  {
+   "time": "15:30",
+   "sector": "XIII Corps",
+   "event": "18th Division reaches White Trench"
+  },
+  {
+   "time": "16:00",
+   "sector": "X Corps",
+   "event": "Afternoon: German counter-attacks close on the Schwaben Redoubt from three sides: Gruppe Prager from Grandcourt, Gruppe Beyerköhler (later Wurm) and companies of Bavarian R.I.R. 8 from Feste Staufen, Abteilung Lunau (14th Company, R.I.R. 99) along the Auwärter-Weg (time approximate)",
+   "source": "German regimental maps reproduced in the owner's research"
+  },
+  {
+   "time": "16:33",
+   "sector": "XV Corps",
+   "event": "21st Division ordered to consolidate"
+  },
+  {
+   "time": "17:00",
+   "sector": "XV Corps",
+   "event": "7th Division reaches Bunny Alley-Fritz Trench (map notes say about 19:00)"
+  },
+  {
+   "time": "17:15",
+   "sector": "XIII Corps",
+   "event": "With Montauban and Pommiers Redoubt taken, German resistance in the centre collapses; all of Montauban Alley in British hands",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "21:00",
+   "sector": "XIII Corps",
+   "event": "Evening: poorly co-ordinated German counter-attacks on Montauban are driven off",
+   "source": "Osprey, Somme 1916"
+  },
+  {
+   "time": "22:00",
+   "sector": "X Corps",
+   "event": "Heavier German counter-attacks force the 36th Division back from the Schwaben Redoubt"
+  },
+  {
+   "time": "22:30",
+   "sector": "X Corps",
+   "event": "Only about 750 yards of the German front line still held by the 36th Division"
+  },
+  {
+   "time": "2 July 11:30",
+   "sector": "VIII Corps",
+   "event": "Last company (1st Royal Irish Fusiliers) leaves the Quadrilateral"
+  }
+ ]
 }
