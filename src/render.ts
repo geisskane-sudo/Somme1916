@@ -206,6 +206,33 @@ void main(){
   vec3 c = mix(vCol.rgb * uLight, uFog, 1.0 - exp(-length(vW - uCam) * uFogDen));
   o = vec4(c, vCol.a * uAlpha * (0.5 + 0.5 * e));
 }`;
+// barbed wire: a band on the strip vertex layout; crossing strands and pickets drawn per pixel in world space,
+// patches knocked out where the bombardment cut it (vCol.a = share still standing)
+const WIRE_FS = `#version 300 es
+precision highp float;
+in vec4 vCol; in float vSide; in vec3 vW; uniform vec3 uLight, uCam, uFog; uniform float uFogDen, uAlpha; uniform vec4 uHoles[8]; out vec4 o;
+float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + 1.0), f.x), f.y); }
+void main(){
+  for (int i = 0; i < 8; i++) if (uHoles[i].w > 0.0 && distance(vW.xz, uHoles[i].xy) < uHoles[i].z * 1.3) discard;
+  float gap = 0.65 * n2(vW.xz / 9.0) + 0.35 * n2(vW.xz / 3.5 + 7.1);             // cut: ragged gaps where shells broke it
+  if (gap > vCol.a + 0.08 * (vCol.a - 0.5)) discard;
+  float rag = abs(vSide) + 0.35 * (n2(vW.xz / 2.0) - 0.5);                         // ragged edges
+  float e = 1.0 - smoothstep(0.55, 0.95, rag); if (e <= 0.01) discard;
+  vec2 q = vW.xz;
+  float a1 = (q.x + q.y) / 2.3, a2 = (q.x - q.y) / 1.7 + 0.31, a3 = q.x / 3.1 + q.y / 5.3;
+  float f1 = fwidth(a1), f2 = fwidth(a2), f3 = fwidth(a3);
+  float l1 = 1.0 - smoothstep(0.015, 0.015 + f1, 0.5 - abs(fract(a1) - 0.5));          // distance to the strand, in periods
+  float l2 = 1.0 - smoothstep(0.015, 0.015 + f2, 0.5 - abs(fract(a2) - 0.5));
+  float l3 = 1.0 - smoothstep(0.02, 0.02 + f3, 0.5 - abs(fract(a3) - 0.5));
+  float strands = max(max(l1, l2), l3);
+  float post = 1.0 - smoothstep(0.12, 0.12 + fwidth(q.x) * 1.5, length(fract(q / 3.0) - 0.5));
+  float far = clamp((f1 - 0.03) * 6.0, 0.0, 1.0);                                           // far off: an even grey-brown band
+  float cov = mix(max(strands * 0.9, post) + 0.12, 0.5, far);
+  vec3 c = mix(vec3(0.11, 0.10, 0.09), vec3(0.26, 0.19, 0.14), 0.25 + 0.5 * n2(q / 5.0));
+  c = mix(c * uLight, uFog, 1.0 - exp(-length(vW - uCam) * uFogDen));
+  o = vec4(c, cov * e * uAlpha);
+}`;
 // the Ancre: a ribbon of water on the strip vertex layout, sky-coloured with moving ripples and glints
 const WATER_FS = `#version 300 es
 precision highp float;
@@ -996,6 +1023,14 @@ export class Renderer {
     this.garMesh = this.stripMesh(this.garMesh, v);
   }
   private pocketMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
+  private wireMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
+  private pWire: WebGLProgram | null = null; private uWire: Record<string, WebGLUniformLocation | null> = {};
+  /** wire belts: segments with a half-width in metres and the share still standing (0..1) */
+  setWire(segs: { a: P; b: P; half: number; standing: number }[]) {
+    const v: number[] = []; for (const g of segs) this.strips(v, [[g.a, g.b]], g.half, [0, 0, 0, g.standing]);
+    this.wireMesh = this.stripMesh(this.wireMesh, v);
+    if (!this.pWire) { this.pWire = createProgram(this.gl, TRENCH_VS, WIRE_FS); this.uWire = uniforms(this.gl, this.pWire, ['uVP', 'uCam', 'uPx', 'uLight', 'uFog', 'uFogDen', 'uAlpha', 'uMinW', 'uLift', 'uHoles']); }
+  }
   /** German-held trench lengths behind the British advance */
   setPockets(lines: P[][]) { const v: number[] = []; this.strips(v, lines, 4.2, [0.12, 0.5, 0.2, 0.9]); this.pocketMesh = this.stripMesh(this.pocketMesh, v); }
   /** replace the German front-line ribbon */
@@ -1122,6 +1157,14 @@ export class Renderer {
     if (this.trMesh?.n && dOn > 0) {
       trUniforms(); gl.uniform1f(this.uTr.uAlpha, dOn); gl.uniform1f(this.uTr.uMinW, 1.1); gl.uniform1f(this.uTr.uLift, 0);
       this.drawChunked(this.trMesh, cam.vp);
+    }
+    if (this.wireMesh?.n && this.pWire && dOn > 0) {
+      const u = this.uWire, sy = Math.max(light.sun[1], 0);
+      gl.useProgram(this.pWire); gl.uniformMatrix4fv(u.uVP, false, cam.vp); gl.uniform3f(u.uCam, cam.ex, cam.ey, cam.ez); gl.uniform1f(u.uPx, cam.px);
+      gl.uniform3f(u.uLight, light.sunCol[0] * sy + light.sky[0], light.sunCol[1] * sy + light.sky[1], light.sunCol[2] * sy + light.sky[2]);
+      gl.uniform3fv(u.uFog, light.fog); gl.uniform1f(u.uFogDen, 0.6 / (cam.dist * 3 + 8000)); gl.uniform4fv(u.uHoles, holes);
+      gl.uniform1f(u.uAlpha, dOn * Math.max(0, Math.min(1, (9000 - cam.dist) / 4000))); gl.uniform1f(u.uMinW, 0); gl.uniform1f(u.uLift, 0.05);
+      gl.bindVertexArray(this.wireMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, this.wireMesh.n);
     }
     if (this.waterMesh?.n) {
       gl.useProgram(this.pW); gl.uniformMatrix4fv(this.uW.uVP, false, cam.vp); gl.uniform3f(this.uW.uCam, cam.ex, cam.ey, cam.ez); gl.uniform1f(this.uW.uPx, cam.px);

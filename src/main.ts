@@ -36,6 +36,28 @@ async function boot() {
   const bv = new BattleView(battle, r, units);
   r.setGermanFront(battle.germanFrontPath());
   r.setShelling(shellBands(battle));
+  // ---------------- barbed wire ----------------
+  // German: two belts about 30 yd deep and 15 yd apart in front of the front trench (the 1915-16 rebuilding of
+  // the Somme defences), the near belt taken as 10 m out; one belt before the support trench. Shrunk where no
+  // man's land is narrow. British: one thinner belt before the front line. Patches are gone in proportion to the
+  // division's wire-cutting result (plan.json `wire`); stretches no division attacked keep most of theirs.
+  {
+    const segs: { a: P; b: P; half: number; standing: number }[] = [], C = battle.cells;
+    const cut = (c: (typeof C)[number]) => (c.div ? battle.divPlan.get(c.div)?.wire ?? 0.6 : 0.15);
+    const belt = (dist: (c: (typeof C)[number]) => number | null, half: (c: (typeof C)[number]) => number, standing: (c: (typeof C)[number]) => number) => {
+      for (let i = 1; i < C.length; i++) {
+        const c0 = C[i - 1], c1 = C[i], d0 = dist(c0), d1 = dist(c1);
+        if (d0 === null || d1 === null || Math.abs(c0.w - c1.w) > 70) continue;
+        segs.push({ a: { x: c0.bx + c0.ax * d0, z: c0.bz + c0.az * d0 }, b: { x: c1.bx + c1.ax * d1, z: c1.bz + c1.az * d1 }, half: Math.min(half(c0), half(c1)), standing: standing(c1) });
+      }
+    };
+    const sc = (c: (typeof C)[number]) => Math.min(1, (0.6 * c.w) / 78);       // the two belts span ~78 m
+    belt(c => c.w - (10 + 13.7) * sc(c), c => 13.7 * sc(c), c => 1 - cut(c));
+    belt(c => c.w - (10 + 27.4 + 13.7 + 13.7) * sc(c), c => 13.7 * sc(c), c => 1 - cut(c));
+    belt(c => (c.traced && c.traced[1] !== undefined ? c.traced[1] - 12 : null), () => 5, c => 1 - 0.6 * cut(c));
+    belt(c => Math.min(18, 0.15 * c.w), () => 4, c => (c.div ? 0.55 : 0.85));
+    r.setWire(segs);
+  }
   r.showBattalions = false;
   let sheetReady = false; loadSheet(r).then(() => (sheetReady = true)).catch(() => {});
   let simDone = false;
@@ -75,27 +97,6 @@ async function boot() {
   for (const m of mines) evs.push({ t: m.t, text: `${m.name} mine blown${m.charge_lb ? ` (${m.charge_lb.toLocaleString()} lb of ammonal)` : ''}${m.note ? ' — ' + m.note : ''}`, x: m.p.x, z: m.p.z });
   evs.sort((a, b) => a.t - b.t);
 
-  // ---------------- German counter-attacks (from the German regimental maps in the owner's research) ----------------
-  // arrows shown while each counter-attack was under way; start and end points as offsets from named features
-  const feat = (n: string) => { const f = GEO.features.find(q => q.name.startsWith(n)) ?? GEO.places.find(q => q.name === n); return f ? toXZ(f.ll) : null; };
-  const CA: { t0: number; t1: number; from: [string, number, number]; to: [string, number, number] }[] = [
-    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Grandcourt', 0, 250], to: ['Schwaben Redoubt', 60, -220] },          // Gruppe Prager
-    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Stuff Redoubt', 0, 0], to: ['Schwaben Redoubt', 220, -60] },         // Gruppe Beyerköhler / Wurm, Bavarian R.8
-    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Mouquet Farm', -300, -350], to: ['Schwaben Redoubt', 200, 180] },    // Abteilung Lunau along the Auwärter-Weg
-    { t0: 9 * 60 + 15, t1: 12 * 60, from: ['Leipzig Salient', 700, -150], to: ['Leipzig Salient', 160, 0] },      // reserves into the Leipzig Salient
-  ];
-  const caArrows = (tm: number) => {
-    const out: P[][] = [];
-    for (const c of CA) {
-      if (tm < c.t0 || tm > c.t1) continue;
-      const a = feat(c.from[0]), b = feat(c.to[0]); if (!a || !b) continue;
-      const A = { x: a.x + c.from[1], z: a.z + c.from[2] }, B = { x: b.x + c.to[1], z: b.z + c.to[2] };
-      const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, h = 90;
-      out.push([A, B], [B, { x: B.x - ux * h - uz * h * 0.6, z: B.z - uz * h + ux * h * 0.6 }], [B, { x: B.x - ux * h + uz * h * 0.6, z: B.z - uz * h - ux * h * 0.6 }]);
-    }
-    return out;
-  };
-  let caKey = '';
 
   // ---------------- effects ----------------
   const rnd = Math.random;
@@ -358,19 +359,25 @@ async function boot() {
   const showStop = (i: number) => {
     stop = Math.max(0, Math.min(TOUR.length - 1, i)); const s = TOUR[stop];
     tourEl.classList.remove('hidden'); $('info').classList.add('hidden'); $('toast').classList.remove('on');
-    tourEl.innerHTML = `<div class="tn">Stop ${stop + 1} of ${TOUR.length} · ${esc(s.time)}</div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>` +
-      (s.source ? `<p class="dim src">${esc(s.source)}</p>` : '') +
+    tourEl.innerHTML = `<div class="tn">Stop ${stop + 1} of ${TOUR.length}</div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>` +
+      (s.source ? `<p class="dim src">${esc(s.source)}</p>` : '') + '<p class="wait dim"></p>' +
       `<div class="row"><button id="t-prev"${stop === 0 ? ' disabled' : ''}>‹ Back</button><button id="t-next">${stop === TOUR.length - 1 ? 'Finish' : 'Next ›'}</button><button id="t-end">End tour</button></div>`;
     $('t-prev').onclick = () => showStop(stop - 1);
     $('t-next').onclick = () => (stop === TOUR.length - 1 ? endTour() : showStop(stop + 1));
     $('t-end').onclick = endTour;
     const p = where(s.at);
     if (s.at.whole || !p) whole(); else fly(p.x, p.z, s.dist);
+    cam.tx = cam.gx; cam.tz = cam.gz; cam.dist = cam.gdist; cam.pitch = cam.gpitch; cam.yaw = cam.gyaw;   // cut straight to the scene
     // jump to the stop's moment once the simulation has worked that far
-    const target = parseTime(s.time) ?? T0, me = stop;
+    const [hh, mm, ss] = s.time.split(':').map(Number), target = hh * 60 + mm + (ss || 0) / 60, me = stop;
     const go = () => {
       if (stop !== me) return;
-      if (bv.available < target && !simDone) { play(false); setTimeout(go, 250); return; }
+      if (bv.available < target && !simDone) {
+        play(false); const w = tourEl.querySelector('.wait') as HTMLElement | null;
+        if (w) w.textContent = `Preparing this moment… ${Math.round(100 * (bv.available - T0) / Math.max(1, target - T0))}%`;
+        setTimeout(go, 150); return;
+      }
+      (tourEl.querySelector('.wait') as HTMLElement | null)?.remove();
       t = Math.max(T0, Math.min(target, bv.available)); prevT = t; slider.value = String(t); r.bursts.length = 0;
       setSpeed(s.speed); play(true);
     };
@@ -412,7 +419,7 @@ async function boot() {
     if (k.has('q')) cam.gyaw += dt; if (k.has('e')) cam.gyaw -= dt;
     if (k.has('r')) cam.gpitch -= dt * 0.7; if (k.has('f')) cam.gpitch += dt * 0.7;
     if (k.has('=') || k.has('+')) cam.gdist *= Math.exp(-dt * 1.5); if (k.has('-')) cam.gdist *= Math.exp(dt * 1.5);
-    if (!simDone) simDone = battle.advance(9);
+    if (!simDone) simDone = battle.advance(stop >= 0 ? 200 : 9);   // work much faster while the tour is on
     prevT = t;
     if (playing) { t = Math.min(T1, bv.available, t + dt * speed / 60); if (t >= T1) play(false); }
     for (const m of mines) if (prevT < m.t && t >= m.t && t - m.t < 4) mineBlast(m);
@@ -421,7 +428,7 @@ async function boot() {
     const decals: number[] = [];
     mines.forEach((m, i) => (r.craterOn[i] = t >= m.t));
     bv.draw(t, cam);
-    { const arr = caArrows(t), k = arr.length + ':' + Math.floor(t); if (k !== caKey) { caKey = k; r.setLive(1, arr, [0.28, 0.32, 0.26, 1], 5, 8); } } moveBnLabels(); r.render(cam, light(t), decals, dt);
+    moveBnLabels(); r.render(cam, light(t), decals, dt);
     $('clock').textContent = `${hhmm(t)}`;
     const tot = bv.totals(t);
     $('score').innerHTML = t < 7 * 60 + 20 ? '' : `Casualties · British <b>${Math.round(tot.b).toLocaleString()}</b> · German <b>${Math.round(tot.g).toLocaleString()}</b>`;
