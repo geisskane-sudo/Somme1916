@@ -699,7 +699,10 @@ export class Battle {
     const W = this.cells.map(c => c.w), med = W.map((_, i) => { const v = W.slice(Math.max(0, i - 2), i + 3).sort((a, b) => a - b); return v[v.length >> 1]; });
     const out: P[] = []; let prev: { li: number; k: number; u: number } | null = null, prevP: P | null = null;
     for (const c of this.cells) {
-      const odd = Math.abs(c.w - med[c.i]) > 60, d = odd ? med[c.i] : c.w;
+      // ...unless a mine was laid under it: those points were on the German front (the Hawthorn Redoubt salient)
+      const fp = { x: c.bx + c.ax * c.w, z: c.bz + c.az * c.w };
+      const mined = MINES.some(m => Math.hypot(m.x - fp.x, m.z - fp.z) < 60);
+      const odd = !mined && Math.abs(c.w - med[c.i]) > 60, d = odd ? med[c.i] : c.w;
       const p = { x: c.bx + c.ax * d, z: c.bz + c.az * d }, h = c.traced && !odd ? hit(c) : null;
       if (h && prev && prevP && h.li === prev.li && h.k !== prev.k) {
         // follow the traced trench from the last crossing to this one, if it doesn't wander far
@@ -733,6 +736,7 @@ export const short = (d: string) => d.replace(/ \(.*?\)/, '').replace(' Division
 
 // ---------------- traced trenches (NLS trench maps, tools/trenches.py) ----------------
 type XZ = [number, number];
+const MINES = ((GEO as unknown as { mines?: { ll: [number, number] }[] }).mines ?? []).map(m => toXZ(m.ll));
 const TL = (trenches.lines as unknown as { p: XZ[] }[]).map(l => l.p);
 const TC = Object.values(trenches.sheets as unknown as Record<string, { corners: XZ[] }>).map(s => s.corners);
 function inside(x: number, z: number, poly: XZ[]) {
