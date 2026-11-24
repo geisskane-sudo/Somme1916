@@ -117,13 +117,42 @@ export function at(p: P[], s: number) {
 
 /** offset a polyline sideways by d metres, on the side away from `away` */
 export function offsetAway(p: P[], d: number, away: P[]): P[] {
-  return p.map((q, i) => {
+  // side of each point (away from the other line), smoothed over its neighbours so a single point whose nearest
+  // point on the other line falls the other way can't throw a spike
+  const N = p.map((q, i) => {
     const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
     let nx = -(b.z - a.z), nz = b.x - a.x; const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
     const near = project(away, q);
-    if ((q.x - near.x) * nx + (q.z - near.z) * nz < 0) { nx = -nx; nz = -nz; }
-    return { x: q.x + nx * d, z: q.z + nz * d };
+    return { nx, nz, side: (q.x - near.x) * nx + (q.z - near.z) * nz < 0 ? -1 : 1 };
   });
+  const out = p.map((q, i) => {
+    let s = 0; for (let k = Math.max(0, i - 6); k <= Math.min(p.length - 1, i + 6); k++) s += N[k].side;
+    const sg = s < 0 ? -1 : 1;
+    return { x: q.x + N[i].nx * d * sg, z: q.z + N[i].nz * d * sg };
+  });
+  return untangle(out);
+}
+
+/** cut out the small loops an offset line makes where it turns inside a bend */
+export function untangle(p: P[], window = 60): P[] {
+  const out: P[] = [];
+  const cross = (a: P, b: P, c: P, d: P) => {
+    const den = (b.x - a.x) * (d.z - c.z) - (b.z - a.z) * (d.x - c.x); if (Math.abs(den) < 1e-9) return null;
+    const t = ((c.x - a.x) * (d.z - c.z) - (c.z - a.z) * (d.x - c.x)) / den, u = ((c.x - a.x) * (b.z - a.z) - (c.z - a.z) * (b.x - a.x)) / den;
+    return t > 0 && t < 1 && u > 0 && u < 1 ? { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t } : null;
+  };
+  let i = 0;
+  while (i < p.length - 1) {
+    out.push(p[i]);
+    let jumped = false;
+    for (let j = Math.min(p.length - 2, i + window); j > i + 1; j--) {
+      const x = cross(p[i], p[i + 1], p[j], p[j + 1]);
+      if (x) { out.push(x); i = j + 1; jumped = true; break; }
+    }
+    if (!jumped) i++;
+  }
+  out.push(p[p.length - 1]);
+  return out;
 }
 
 export function hhmm(min: number) {

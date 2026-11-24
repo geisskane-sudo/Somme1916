@@ -104,6 +104,39 @@ if __name__ == '__main__':
     d = distance_transform_edt(have) * STEP
     w = np.clip((d - STEP) / EDGE, 0, 1); w = w * w * (3 - 2 * w)
     out = coarse + np.where(have, np.nan_to_num(fine) - coarse, 0) * w
+    # mine craters dug on 1 July 1916 (Lochnagar, Hawthorn...) are still holes today: find each one's modern hollow
+    # near its listed position, report the offset, and fill it back to the ground around it (the app draws the
+    # crater itself once the mine is fired)
+    g = json.load(open(f'{ROOT}/data/geography_src.json')); snaps = {}
+    for mn in g['mines']:
+        mx, mz = (mn['ll'][1] - LON0) * KX, -(mn['ll'][0] - LAT0) * KZ
+        R = max(15.0, mn.get('crater_m', 30) / 2)
+        i0, j0 = int(round((mz - bz0) / STEP)), int(round((mx - bx0) / STEP))
+        S = int(150 / STEP)
+        if not (S <= i0 < out.shape[0] - S and S <= j0 < out.shape[1] - S): continue
+        win = out[i0 - S:i0 + S + 1, j0 - S:j0 + S + 1]
+        if not have[i0 - S:i0 + S + 1, j0 - S:j0 + S + 1].all(): continue
+        # depth of each point below the 60 m ring average around it: the crater is the deepest
+        from scipy.ndimage import uniform_filter
+        ring = uniform_filter(win, size=int(4 * R / STEP) | 1)
+        depth = ring - win
+        yy, xx = np.mgrid[-S:S + 1, -S:S + 1]; near = np.hypot(yy, xx) * STEP < 110
+        k = np.unravel_index(np.where(near, depth, -1e9).argmax(), depth.shape)
+        dmax = depth[k]
+        if dmax < 2.5: print(mn['name'], 'no crater in the terrain'); continue
+        ci, cj = i0 - S + k[0], j0 - S + k[1]
+        cx, cz = bx0 + cj * STEP, bz0 + ci * STEP
+        snaps[mn['name']] = [round(LAT0 - cz / KZ, 6), round(LON0 + cx / KX, 6)]
+        # fill: within 1.6 R of the hollow's centre replace by a plane fitted to the ring 1.6-2.4 R
+        rr = np.hypot((np.arange(out.shape[0])[:, None] - ci) * STEP, (np.arange(out.shape[1])[None, :] - cj) * STEP)
+        Rf = max(R * 1.6, 35); band = (rr > Rf) & (rr < Rf * 1.5); inn = rr <= Rf
+        I, J = np.nonzero(band); A = np.c_[I, J, np.ones(len(I))]; coef = np.linalg.lstsq(A, out[I, J], rcond=None)[0]
+        I2, J2 = np.nonzero(rr < Rf * 1.25)
+        plane = np.c_[I2, J2, np.ones(len(I2))] @ coef
+        wgt = np.clip((Rf * 1.25 - rr[I2, J2]) / (Rf * 0.25), 0, 1)
+        out[I2, J2] = out[I2, J2] * (1 - wgt) + plane * wgt
+        print(f"{mn['name']}: modern hollow {dmax:.1f} m deep, {np.hypot(cx - mx, cz - mz):.0f} m from the listed position; filled")
+    json.dump(snaps, open(f'{ROOT}/data/mines_snap.json', 'w'))
     blocks, chunks = [], []
     for j, i in zip(*np.nonzero(sel)):
         q = np.round(out[j * K:(j + 1) * K + 1, i * K:(i + 1) * K + 1] * 10).astype('<u2')

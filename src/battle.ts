@@ -674,7 +674,9 @@ export class Battle {
           const dm = (q[1] + q[3]) / 2;
           if (Math.abs(dm - sec.depth) < 30 && Math.abs(q[1] - sec.depth) < 45 && Math.abs(q[3] - sec.depth) < 45) got.push([toW(q[0], q[1]), toW(q[2], q[3])]);
         }
-        out[id] = got.length ? got : [[this.world(c.s - CELL / 2, sec.depth), this.world(c.s + CELL / 2, sec.depth)].map(w => ({ x: w.x, z: w.z }))];
+        // no traced trench: on a mapped stretch draw nothing (the companies show who is there); off the maps a
+        // straight 100 m piece across this stretch's own line of attack
+        out[id] = got.length ? got : (c.traced || c.tracedInter) ? [] : [[toW(-CELL / 2, sec.depth), toW(CELL / 2, sec.depth)]];
       }
     }
     return (this.secPaths = out);

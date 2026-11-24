@@ -1,6 +1,6 @@
 # 1 July 1916 — handoff notes for Claude
 
-A watch-only browser simulation of the British attack on the Somme, 1 July 1916, Gommecourt to Maricourt. Companies advance as red rectangles over a 3D terrain map; the day's results match the historical record per division. Published as a Claude artifact ("1 July 1916 – The British attack on the Somme"); republish `dist/index.html`, `dist/main.js`, `dist/thiepval_map.jpg`, `dist/terrain.png` to the same artifact rather than creating a new one.
+A watch-only browser simulation of the British attack on the Somme, 1 July 1916, Gommecourt to Maricourt. Companies advance as red rectangles over a 3D terrain map; the day's results match the historical record per division. Published as a Claude artifact ("1 July 1916 – The British attack on the Somme"); republish `dist/index.html`, `dist/main.js`, `dist/map1916.jpg`, `dist/terrain.png` to the same artifact rather than creating a new one.
 
 ## The owner's standing wishes
 - Replies are read on a phone: lead with the answer, keep it short.
@@ -36,6 +36,14 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 - `tools/sheets.py` georeferences each screenshot from a labelled grid corner (trench-map lettered/numbered squares, yards), refined by a grid-darkness optimiser → `data/sheetfits.json`. Validated against CWGC landmarks.
 - `tools/trenches.py` extracts red German trenches → `data/trenches.json` (~2,200 lines). `tools/british.py` follows the blue "British front line" → `data/britishfront.json` (Gommecourt kept from the sketch; Ancre to Thiepval Wood from the 1:5000 sheet; stops at Mansel Copse). `tools/thiepval.py` the 1:5000 extraction (slow).
 - Gaps: about 500 m at Gommecourt (screenshot 04, 1:10,000, could fill it once its corners are labelled); no sheet for Montauban–Maricourt.
+
+## 24 Nov changes
+- Trench trace: paper stains excluded by colour (`g - b < 26`); the owner's annotated 57D.SE screenshot is sheet '14' (`refs/nls/14.png`), used fill-only (`FILL_ONLY`) for the strip the April sheets miss, replacing most of the 1:5000 fill. No schematic German trenches are drawn off the maps.
+- 1916 map: `tools/mapmosaic.py` stitches all screenshots into `web/map1916.jpg` (5 m/px, local metres, black = no map); the "1916 map" button shows it along the whole front. The old thiepval_map.jpg is no longer used.
+- Mines: `tools/rgealti.py` fills the modern Lochnagar and Hawthorn craters in the 5 m terrain and snaps mine positions to them (`data/mines_snap.json`).
+- Germans: the static regiment blocks are gone; trench lengths the Germans hold with men are drawn field grey (`setGarrison`). Stretches no division attacked show holding companies (`BattleView.holding`; the 48th Division between VII and VIII Corps).
+- Roads by eye: `MANUAL` in tools/roads.py (Mill Road, Thiepval Road). Rubble size per village: `VILLAGE_R` in render.ts. Schwaben Redoubt label from the 1:5000 sheet.
+- Ancre water ribbon (`WATER_FS`), churned no man's land (shelling.ts bands + shader tint), brighter night, Very lights from dusk. Intro screen removed; key under "?"; Go to menu groups divisions under corps. `offsetAway` is side-stable and loop-free (`untangle`).
 
 ## Next steps
 - Done 22 Nov: German front ribbon from the trace; fire/communication trench styles; captured trenches on the real trenches; whole-front close-up; shell holes from the record; thin company lines up close.

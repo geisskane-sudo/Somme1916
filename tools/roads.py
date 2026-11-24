@@ -101,8 +101,21 @@ def clean(roads, min_piece=150.0):
                 out.append({**r, 'p': [[round(float(x), 1), round(float(z), 1)] for x, z in q]})
     return out
 
+# roads read by eye where the tracer misses them: sheet, pixels along the road
+MANUAL = {
+    'Mill Road': ('14', [(268, 262), (300, 300), (335, 333), (372, 340), (430, 345), (470, 350)]),
+    'Thiepval Road': ('14', [(470, 350), (520, 376), (570, 402), (620, 440), (660, 482), (700, 530)]),
+}
+def manual():
+    out = []
+    for name, (k, pts) in MANUAL.items():
+        P = np.array(pts, float); X = sheets.transform(k, fits[k])(P[:, 0], P[:, 1])
+        out.append({'kind': 'road', 'sheet': k, 'name': name, 'p': [[round(float(x), 1), round(float(z), 1)] for x, z in X]})
+    return out
+
 if __name__ == '__main__' and len(sys.argv) > 1 and sys.argv[1] == '--clean':
-    R = json.load(open(f'{ROOT}/data/roads.json')); n0 = len(R['roads']); R['roads'] = clean(R['roads'])
+    R = json.load(open(f'{ROOT}/data/roads.json')); n0 = len(R['roads'])
+    R['roads'] = clean([r for r in R['roads'] if 'name' not in r]) + manual()
     json.dump(R, open(f'{ROOT}/data/roads.json', 'w')); print(n0, '->', len(R['roads']), 'pieces'); sys.exit()
 
 if __name__ == '__main__':

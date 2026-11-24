@@ -28,8 +28,8 @@ export function shellBands(b: Battle): { poly: P[]; p: number }[] {
       const q = (a: number, d: number) => ({ x: c.bx + tx * a + c.ax * d, z: c.bz + tz * a + c.az * d });
       out.push({ poly: [q(-h, d0), q(h, d0), q(h, d1), q(-h, d1)], p });
     };
-    band(c.w - 30, c.w + 450, 1.2 * I);                              // German front system: the weight of the bombardment
-    band(20, c.w - 30, 0.5 * I);                                     // no man's land: shorts and wire-cutting
+    band(c.w - 30, c.w + 450, 0.25 + 1.2 * I);                       // German front system: the weight of the bombardment
+    band(20, c.w - 30, 0.45 + 0.9 * I + 0.25 * G);                    // no man's land: months of shelling, shorts, wire-cutting, German barrage
     band(c.w + 450, (c.d2 ?? c.w + 1500) + 150, 0.18 * I);           // deeper German positions
     band(-220, 20, 0.75 * G * G);                                    // German shelling of the British trenches
   }

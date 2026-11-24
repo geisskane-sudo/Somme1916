@@ -24,6 +24,10 @@ if os.path.exists('data/britishfront.json'):
 import sys; sys.path.insert(0, "tools"); import places as _pl
 for p in g['places'] + g['features']:
     if p['name'] in _pl.READ: p['ll'] = _pl.ll(p['name'])
+if os.path.exists('data/mines_snap.json'):          # mines placed on their modern craters (tools/rgealti.py)
+    MS = json.load(open('data/mines_snap.json'))
+    for m in g['mines']:
+        if m['name'] in MS: m['ll'] = MS[m['name']]
 if os.path.exists('data/ancre.json'): g['ancre'] = json.load(open('data/ancre.json'))['line']
 if os.path.exists('data/woods.json'):
     WD = json.load(open('data/woods.json'))

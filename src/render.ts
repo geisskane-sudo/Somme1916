@@ -61,7 +61,8 @@ void main(){
   if (uFineGrid.w > 0.0) {                       // whole-front mesh: cut away where a fine block is drawn (overlapping 4 m at its outer edges)
     vec2 sz = vec2(textureSize(uFineMask, 0)) * uFineGrid.z, q = (vPos.xz - uFineGrid.xy);
     float m = texture(uFineMask, (q + vec2(4, 4)) / sz).r * texture(uFineMask, (q + vec2(-4, 4)) / sz).r * texture(uFineMask, (q + vec2(4, -4)) / sz).r * texture(uFineMask, (q + vec2(-4, -4)) / sz).r;
-    if (m > 0.5) discard;
+    bool inGrid = q.x > 4.0 && q.y > 4.0 && q.x < sz.x - 4.0 && q.y < sz.y - 4.0;     // the mask's edge would otherwise be clamped outwards
+    if (m > 0.5 && inGrid) discard;
   }
   vec3 base = texture(uTex, vUV).rgb;
   if (uDetailOn > 0.0) {
@@ -70,11 +71,13 @@ void main(){
   }
   if (uMapOn > 0.0) {
     vec2 mu = vec2(dot(uMapA, vec3(vPos.xz, 1.0)), dot(uMapB, vec3(vPos.xz, 1.0)));
-    if (mu.x > uMapFrame.x && mu.y > uMapFrame.y && mu.x < uMapFrame.z && mu.y < uMapFrame.w) base = mix(base, texture(uMap, mu).rgb, uMapOn);
+    if (mu.x > uMapFrame.x && mu.y > uMapFrame.y && mu.x < uMapFrame.z && mu.y < uMapFrame.w) { vec3 mc = texture(uMap, mu).rgb; if (max(mc.r, max(mc.g, mc.b)) > 0.12) base = mix(base, mc, uMapOn); }   // black = no map here
   }
   // close-up detail, faded out as a pixel grows past a couple of metres
   float mpp = length(fwidth(vPos.xz)), near = 1.0 - smoothstep(0.7, 2.6, mpp);
   vec4 auxF = texture(uAux, vUV);
+  // churned ground: grass torn up into chalky earth where the shelling was heavy, seen from any distance
+  { float ch = smoothstep(0.15, 0.7, auxF.r) * (0.55 + 0.45 * vnoise(vPos.xz * 0.05)); base = mix(base, vec3(0.5, 0.45, 0.36) * (0.85 + 0.3 * vnoise(vPos.xz * 0.3)), ch * 0.6); }
   if (auxF.b > 0.02) {
     // rubble where a village stood: brick dust and chalk, broken into fragments up close
     vec2 p = vPos.xz; float n1 = vnoise(p * 0.15), n2 = vnoise(p * 0.9 + 17.0);
@@ -88,7 +91,7 @@ void main(){
     vec2 p = vPos.xz;
     base *= 1.0 + (vnoise(p * 0.6) * 0.6 + vnoise(p * 2.1) * 0.4 - 0.5) * 0.18;
     if (aux.g > 0.2) base = mix(base, crowns(base, p), smoothstep(0.2, 0.6, aux.g));
-    if (aux.r > 0.004) { base = holes(base, p, 6.0, aux.r, 0.6, 2.8, 0.0); base = holes(base, p, 17.0, aux.r * 0.25, 2.5, 5.5, 41.0); }
+    if (aux.r > 0.004) { base = holes(base, p, 6.0, aux.r, 0.6, 2.8, 0.0); base = holes(base, p, 17.0, aux.r * 0.25, 2.5, 5.5, 41.0); base = holes(base, p, 3.5, aux.r * 0.6, 0.4, 1.2, 77.0); }
     base = mix(b0, base, near);
   }
   float h = vPos.y / 10.0; float fw = fwidth(h);
@@ -203,6 +206,24 @@ void main(){
   vec3 c = mix(vCol.rgb * uLight, uFog, 1.0 - exp(-length(vW - uCam) * uFogDen));
   o = vec4(c, vCol.a * uAlpha * (0.5 + 0.5 * e));
 }`;
+// the Ancre: a ribbon of water on the strip vertex layout, sky-coloured with moving ripples and glints
+const WATER_FS = `#version 300 es
+precision highp float;
+in vec4 vCol; in float vSide; in vec3 vW; uniform vec3 uLight, uCam, uFog, uSky, uSun; uniform float uFogDen, uTime; out vec4 o;
+float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + 1.0), f.x), f.y); }
+void main(){
+  vec2 p = vW.xz;
+  float r = n2(p * 0.35 + vec2(uTime * 0.25, uTime * 0.1)) * 0.6 + n2(p * 1.1 - vec2(uTime * 0.4, 0.0)) * 0.4;
+  vec3 n = normalize(vec3((r - 0.5) * 0.5, 1.0, (n2(p * 0.7 + uTime * 0.2) - 0.5) * 0.5));
+  vec3 v = normalize(uCam - vW), h = normalize(v + uSun);
+  float fres = 0.25 + 0.75 * pow(1.0 - max(dot(n, v), 0.0), 3.0);
+  vec3 deep = vec3(0.16, 0.24, 0.26) * uLight, sky = uSky * 1.3 + vec3(0.05);
+  vec3 c = mix(deep, sky, fres) + uLight * pow(max(dot(n, h), 0.0), 90.0) * 0.8;
+  float edge = 1.0 - smoothstep(0.7, 1.0, abs(vSide));
+  c = mix(c, uFog, 1.0 - exp(-length(vW - uCam) * uFogDen));
+  o = vec4(c, 0.92 * (0.35 + 0.65 * edge));
+}`;
 const POINT_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in float aSize; layout(location=2) in vec4 aCol;
 uniform mat4 uVP; uniform vec3 uCam; uniform float uPx; out vec4 vCol;
@@ -265,6 +286,9 @@ export class Camera {
   }
 }
 
+/** radius (m) of each front-line village's built-up area, measured on the 1916 trench maps */
+const VILLAGE_R: Record<string, number> = { 'St Pierre-Divion': 75, 'Thiepval': 260, 'Serre': 170, 'Beaumont-Hamel': 280, 'Gommecourt': 260, 'Ovillers': 200,
+  'La Boisselle': 160, 'Fricourt': 300, 'Mametz': 240, 'Montauban': 230, 'Beaucourt': 220, 'Grandcourt': 300, 'Pozières': 320, 'Contalmaison': 200, 'Hamel': 200, 'Puisieux': 400 };
 interface Chunked { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number; parts: { first: number; n: number; box: number[] }[] }
 interface Ribbon { vao: WebGLVertexArrayObject; n: number; color: [number, number, number, number]; width: number; dash: number; lift: number; minDist?: number; maxDist?: number }
 export interface Burst { x: number; y: number; z: number; size: number; r: number; g: number; b: number; a: number; vy: number; grow: number; life: number; age: number; glow: boolean }
@@ -324,6 +348,7 @@ export class Renderer {
     this.buildTexture();
     this.buildTrenchMesh();
     this.buildScenery();
+    this.buildWater();
     this.buildRibbons();
     this.buildBlocks(units);
     this.dyn = this.makeBlockBuffer();
@@ -492,13 +517,7 @@ export class Renderer {
     const out: Run[] = [...trenchRuns()];
     const B = this.lines.british, G = this.lines.german;
     out.push({ kind: FIRE, p: B }, { kind: FIRE, p: offsetAway(B, 160, G) });
-    for (const line of [G, offsetAway(G, 140, B), offsetAway(G, 300, B), this.lines.second, offsetAway(this.lines.second, 130, B)]) {
-      let cur: P[] = [];
-      for (const q of resample(line, 20)) {
-        if (insideSheets(q.x, q.z)) { if (cur.length > 1) out.push({ kind: FIRE, p: cur }); cur = []; } else cur.push(q);
-      }
-      if (cur.length > 1) out.push({ kind: FIRE, p: cur });
-    }
+    // no schematic German trenches beyond the trench maps: there the front-line ribbons show where the lines ran
     return (this.trenches = out);
   }
 
@@ -585,10 +604,6 @@ export class Renderer {
       this.quad(out, u.x, u.z, u.tx * u.w / 2, u.tz * u.w / 2, u.nx * u.d / 2, u.nz * u.d / 2, col, 0);
     }
     const nBn = out.length / 10;
-    for (const g of GEO.germanUnits) {
-      const p = toXZ(g.ll);
-      this.quad(out, p.x, p.z, 170, 0, 0, 120, [0.12, 0.4, 0.2, 0.85], 0);
-    }
     const b = this.makeBlockBuffer(), gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, b.buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.STATIC_DRAW);
     this.blocks = { ...b, n: out.length / 10, nBn };
@@ -713,10 +728,12 @@ export class Renderer {
     const bl = buildingData.buildings as unknown as { p: [number, number][] }[], out: NonNullable<Renderer['ruinsList']> = [];
     for (const pl of GEO.places) {
       const c = toXZ(pl.ll), dmg = this.damage(c.x, c.z); if (dmg < 0.55) continue;
+      const R0 = VILLAGE_R[pl.name] ?? 150;
       const houses = bl.map(b => { let x = 0, z = 0; for (const p of b.p) { x += p[0]; z += p[1]; } return [x / b.p.length, z / b.p.length] as [number, number]; })
-        .filter(([x, z]) => Math.hypot(x - c.x, z - c.z) < 480);
+        .filter(([x, z]) => Math.hypot(x - c.x, z - c.z) < R0 * 1.2);
       const ds = houses.map(([x, z]) => Math.hypot(x - c.x, z - c.z)).sort((a, b) => a - b);
-      const r = ds.length > 3 ? Math.max(170, Math.min(400, ds[Math.floor(ds.length * 0.85)] + 60)) : 230;
+      // radius of the built-up area as drawn on the 1916 maps: St Pierre-Divion was a hamlet of a few houses
+      const r = VILLAGE_R[pl.name] ?? 150;
       out.push({ name: pl.name, x: c.x, z: c.z, r, dmg, houses });
     }
     return (this.ruinsList = out);
@@ -795,7 +812,7 @@ export class Renderer {
     const roadsXZ = (roadData.roads as unknown as { p: [number, number][] }[]).map(r => resample(r.p.map(([x, z]) => ({ x, z })), 5));
     for (const vil of this.ruinedVillages()) {
       const onRoads: P[] = []; for (const q of roadsXZ) for (const p of q) if (Math.hypot(p.x - vil.x, p.z - vil.z) < vil.r) onRoads.push(p);
-      const n = Math.round(260 * vil.dmg * (vil.r / 250));
+      const n = Math.round(vil.dmg * Math.min(320, 30 + 9 * vil.houses.length));
       for (let k = 0; k < n; k++) {
         let x: number, z: number; const u = rnd();
         if (u < 0.5 && vil.houses.length) { const h = vil.houses[Math.floor(rnd() * vil.houses.length)]; x = h[0] + (rnd() - 0.5) * 22; z = h[1] + (rnd() - 0.5) * 22; }
@@ -941,6 +958,21 @@ export class Renderer {
   private capMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
   /** trench lengths in British hands, drawn red over the trenches */
   setCaptured(lines: P[][]) { const v: number[] = []; this.strips(v, lines, 4.2, [0.86, 0.12, 0.1, 0.9]); this.capMesh = this.stripMesh(this.capMesh, v); }
+  private pW!: WebGLProgram; private uW!: Record<string, WebGLUniformLocation | null>;
+  private waterMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
+  private buildWater() {
+    const gl = this.gl;
+    this.pW = createProgram(gl, TRENCH_VS, WATER_FS); this.uW = uniforms(gl, this.pW, ['uVP', 'uCam', 'uPx', 'uLight', 'uFog', 'uFogDen', 'uSky', 'uSun', 'uTime', 'uMinW', 'uLift']);
+    const v: number[] = []; this.strips(v, [resample(this.lines.ancre, 8)], 6, [0.2, 0.3, 0.35, 1]);
+    this.waterMesh = this.stripMesh(null, v);
+  }
+  private garMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
+  /** trench lengths the Germans are holding with men in them, field grey, wider where more men are */
+  setGarrison(lines: { p: P[]; men: number }[]) {
+    const v: number[] = [];
+    for (const l of lines) this.strips(v, [l.p], 1.6 + Math.min(2.6, l.men / 25), [0.42, 0.46, 0.4, 0.95]);
+    this.garMesh = this.stripMesh(this.garMesh, v);
+  }
   private pocketMesh: { vao: WebGLVertexArrayObject; buf: WebGLBuffer; n: number } | null = null;
   /** German-held trench lengths behind the British advance */
   setPockets(lines: P[][]) { const v: number[] = []; this.strips(v, lines, 4.2, [0.12, 0.5, 0.2, 0.9]); this.pocketMesh = this.stripMesh(this.pocketMesh, v); }
@@ -1068,6 +1100,17 @@ export class Renderer {
     if (this.trMesh?.n && dOn > 0) {
       trUniforms(); gl.uniform1f(this.uTr.uAlpha, dOn); gl.uniform1f(this.uTr.uMinW, 1.1); gl.uniform1f(this.uTr.uLift, 0);
       this.drawChunked(this.trMesh, cam.vp);
+    }
+    if (this.waterMesh?.n) {
+      gl.useProgram(this.pW); gl.uniformMatrix4fv(this.uW.uVP, false, cam.vp); gl.uniform3f(this.uW.uCam, cam.ex, cam.ey, cam.ez); gl.uniform1f(this.uW.uPx, cam.px);
+      const sy = Math.max(light.sun[1], 0); gl.uniform3f(this.uW.uLight, light.sunCol[0] * sy + light.sky[0], light.sunCol[1] * sy + light.sky[1], light.sunCol[2] * sy + light.sky[2]);
+      gl.uniform3fv(this.uW.uFog, light.fog); gl.uniform1f(this.uW.uFogDen, 0.6 / (cam.dist * 3 + 8000)); gl.uniform3fv(this.uW.uSky, light.sky); gl.uniform3fv(this.uW.uSun, light.sun);
+      gl.uniform1f(this.uW.uTime, performance.now() / 1000); gl.uniform1f(this.uW.uMinW, 1.5); gl.uniform1f(this.uW.uLift, 0.1);
+      gl.bindVertexArray(this.waterMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, this.waterMesh.n);
+    }
+    if (this.garMesh?.n) {
+      trUniforms(); gl.uniform1f(this.uTr.uAlpha, 1); gl.uniform1f(this.uTr.uMinW, 1.8); gl.uniform1f(this.uTr.uLift, 0.4);
+      gl.bindVertexArray(this.garMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, this.garMesh.n);
     }
     if (this.pocketMesh?.n) {
       trUniforms(); gl.uniform1f(this.uTr.uAlpha, 1); gl.uniform1f(this.uTr.uMinW, 2.6); gl.uniform1f(this.uTr.uLift, 0.6);

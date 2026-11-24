@@ -123,7 +123,10 @@ async function boot() {
       const q = pos(c, d, 30); shell(q.x, q.z, 1.2, false);
     });
     // Very lights at night
-    if (t > 21 * 60 + 40) tries(0.06 * base, () => { const q = near(nml, 300); r.bursts.push({ x: q.x, y: ground(q.x, q.z) + 60, z: q.z, size: 14, r: 1, g: 1, b: 0.85, a: 1, vy: 8, grow: 0, life: 5, age: 0, glow: true }); });
+    // Very lights over no man's land from dusk: mostly German, fired up from the front trench, drifting down
+    if (t > 21 * 60 + 15) tries(0.45 * base * Math.min(1, (t - 21 * 60 - 15) / 30), () => {
+      const q = near(nml, 400); r.bursts.push({ x: q.x, y: ground(q.x, q.z) + 70 + rnd() * 40, z: q.z, size: 22, r: 1, g: 0.97, b: 0.82, a: 1, vy: -4, grow: 0, life: 6 + rnd() * 4, age: 0, glow: true });
+    });
   };
   const mineBlast = (m: typeof mines[0]) => {
     const { x, z } = m.p, y = ground(x, z), big = Math.max(0.4, Math.sqrt((m.charge_lb || 8000) / 40000));
@@ -149,9 +152,9 @@ async function boot() {
     const warm = 1 - Math.min(1, Math.max(0, e * 180 / Math.PI / 25));
     const mix = (a: number[], b: number[], f: number) => a.map((v, i) => v + (b[i] - v) * f);
     return {
-      sun, sunCol: mix([0.05, 0.06, 0.1], mix([1.0, 0.93, 0.82], [1.05, 0.72, 0.45], warm), day),
-      sky: mix([0.07, 0.08, 0.14], [0.42, 0.46, 0.52], day),
-      fog: mix([0.05, 0.06, 0.1], mix([0.74, 0.78, 0.84], [0.85, 0.74, 0.62], warm * 0.7), day),
+      sun, sunCol: mix([0.12, 0.13, 0.19], mix([1.0, 0.93, 0.82], [1.05, 0.72, 0.45], warm), day),
+      sky: mix([0.26, 0.28, 0.37], [0.42, 0.46, 0.52], day),   // night: starlight and a 1% waxing crescent, about as bright as can be read
+      fog: mix([0.1, 0.11, 0.17], mix([0.74, 0.78, 0.84], [0.85, 0.74, 0.62], warm * 0.7), day),
     };
   };
 
@@ -168,6 +171,12 @@ async function boot() {
   for (const p of GEO.places) { const q = toXZ(p.ll); mk(p.name, 'place ' + p.side, q.x, q.z, 0, 40000, 8); }
   for (const f of GEO.features) { const q = toXZ(f.ll); mk(f.name, 'feat', q.x, q.z, 0, 6000, 6); }
   for (const g of GEO.germanUnits) { const q = toXZ(g.ll); mk(g.name, 'ger', q.x, q.z, 0, 9000, 5); }
+  { // the 48th Division held the line between VII and VIII Corps and did not attack
+    const gap = bv.holding.filter(c => c.corps === 'VIII Corps' || c.corps === 'VII Corps');
+    const runs: typeof gap[] = []; for (const c of gap) { const r0 = runs[runs.length - 1]; if (r0 && c.i === r0[r0.length - 1].i + 1) r0.push(c); else runs.push([c]); }
+    const big = runs.filter(r0 => r0.length >= 10).sort((a, b) => b.length - a.length)[0];
+    if (big) { const c = big[big.length >> 1], w = battle.world(c.s, -350); mk('48th Div (holding the line)', 'div', w.x, w.z, 1500, 16000, 7); }
+  }
   for (const m of mines) mk('✹ ' + m.name, 'mine', m.p.x, m.p.z, 0, 14000, 6, () => showMine(m));
   const bnLabs = units.map(u => mk(short(u.name), 'bn w' + u.wave, u.x, u.z, 0, 3200, 3, () => showBn(u)));
   const moveBnLabels = () => bnLabs.forEach((l, i) => { const p = bv.bnPos[i]; if (Math.abs(p.x - l.x) + Math.abs(p.z - l.z) > 1) { l.x = p.x; l.z = p.z; l.y = undefined; } });
@@ -318,7 +327,9 @@ async function boot() {
   // ---------------- buttons ----------------
   $('b-whole').onclick = whole;
   const sel = $('goto') as HTMLSelectElement;
-  sel.innerHTML = '<option value="">Go to…</option>' + corps.map(c => `<option>${esc(c.name)}</option>`).join('') + divs.map(d => `<option value="d:${esc(d.name)}">— ${esc(d.name)}</option>`).join('');
+  // each corps, with its divisions under it
+  sel.innerHTML = '<option value="">Go to…</option>' + corps.map(c => `<option>${esc(c.name)}</option>` +
+    divs.filter(d => d.corps === c.name).map(d => `<option value="d:${esc(d.name)}">\u00a0\u00a0\u00a0${esc(d.name)}</option>`).join('')).join('');
   sel.onchange = () => {
     const v = sel.value; sel.value = '';
     if (v.startsWith('d:')) { const d = divs.find(x => x.name === v.slice(2))!; fly(d.x, d.z, 3500); showDiv(d.name); }
@@ -332,10 +343,9 @@ async function boot() {
   }
   $('b-map').onclick = () => {
     r.mapOpacity = r.mapOpacity > 0 ? 0 : 0.85; $('b-map').classList.toggle('on', r.mapOpacity > 0);
-    if (r.mapOpacity > 0) { if (!sheetReady) toast('The 1916 map is still loading'); fly(-2350, 150, 2600); toast('1:5000 trench map, Schwaben Redoubt and Thiepval (trenches corrected to 20 October 1916)'); }
+    if (r.mapOpacity > 0) { if (!sheetReady) toast('The 1916 map is still loading'); else toast('British 1:20,000 trench maps, April–May 1916 (National Library of Scotland)'); }
   };
   $('help').onclick = e => { if ((e.target as HTMLElement).id === 'help' || (e.target as HTMLElement).tagName === 'BUTTON') $('help').classList.add('hidden'); };
-  $('begin').onclick = () => { $('intro').classList.add('hidden'); play(true); };
 
   // ---------------- main loop ----------------
   let last = performance.now(), liveT = 0;
@@ -368,7 +378,7 @@ async function boot() {
     requestAnimationFrame(frame);
   };
   $('loading').classList.add('hidden');
-  $('intro').classList.remove('hidden');
+  play(true);   // no introduction screen: the day starts at once (? has the key, controls and sources)
   requestAnimationFrame(frame);
   (window as any).__app = { cam, r, units, divs, corps, battle, bv, get simDone() { return simDone; }, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
 }

@@ -38,14 +38,17 @@ SHOTS = {
   '11': dict(sheet='57D', px=(997, 405), sq=('L', 13), sp=139, area=(0, 118, 1752, 875), date='16 May 1916'),
   '12': dict(sheet='57D', px=(1015, 447), sq=('F', 13), sp=140, area=(0, 178, 1770, 875), date='16 May 1916'),
   '13': dict(sheet='62D', px=(257, 695), sq=('F', 15), sp=270, area=(0, 156, 1197, 841), date='25 Apr 1916'),
+  # the owner's 57D.SE screenshot of Thiepval Wood and St Pierre-Divion: fills the strip between 08 and 09
+  '14': dict(sheet='57D', px=(464, 166), sq=('R', 19), sp=242, area=(0, 0, 859, 711), date='1916'),
 }
 MASKS = {  # interface and stray marks to ignore (x0, y0, x1, y1)
   '*': [(0, 118, 32, 180), (1750, 720, 1904, 875)],
   '10': [(0, 220, 62, 250)], '11': [(0, 220, 62, 250)], '12': [(0, 220, 62, 250), (1640, 810, 1904, 875)],
   '07': [(1780, 118, 1904, 400)],
+  '14': [(0, 0, 170, 45), (0, 75, 15, 100), (820, 340, 859, 380)],   # overlay buttons
 }
 
-def path(k): return f'{ROOT}/refs/nls/{k}.' + ('png' if k == '13' else 'jpg')
+def path(k): return f'{ROOT}/refs/nls/{k}.' + ('png' if k in ('13', '14') else 'jpg')
 
 def refine(k):
     """lock the lattice onto the printed grid: maximise darkness along predicted grid lines"""

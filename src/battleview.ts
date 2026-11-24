@@ -64,10 +64,19 @@ export class BattleView {
       const col = COL[state] ?? COL[ST.wait];
       r.flatQuad(w.x, w.z, tx * half, tz * half, w.ax * thick, w.az * thick, col[0], col[1], col[2], col[3], 4);
     }
+    // stretches no division attacked were still held: a company in the front trench every 100 m
+    for (const c of this.holding) {
+      const w = b.world(c.s, -25), tx = w.az, tz = -w.ax;
+      const f = Math.min(1, Math.max(0, (cam.dist - 1200) / 4000)), sm = f * f * (3 - 2 * f), thick = 3 * (1 - sm) + 9 * scale * sm;
+      r.flatQuad(w.x, w.z, tx * 42, tz * 42, w.ax * thick, w.az * thick, 0.62, 0.3, 0.27, 0.85, 4);
+    }
     // once a minute: the line of furthest advance and battalion label positions
     const { m0 } = this.idx(t);
     if (m0 !== this.lastMinute) { this.lastMinute = m0; this.minute(t); }
   }
+  /** stretches of the British front with no attacking company: held by troops who stayed in the line */
+  get holding() { return this._hold ??= this.b.cells.filter((c, i) => !this.b.strips.some(s => s.cell === i)); }
+  private _hold: Battle['cells'] | undefined;
   private minute(t: number) {
     const b = this.b, n = b.cells.length, rec = b.rec, { m0 } = this.idx(t);
     // captured trenches: the traced trench lengths each held section stands for
@@ -112,6 +121,14 @@ export class BattleView {
       if (rec.gar[m0 * rec.nSec + s.id] >= 2) pockets.push(...paths[s.id]);
     }
     this.r.setPockets(pockets);
+    // German garrisons: every section still in German hands with men in it
+    const gar: { p: P[]; men: number }[] = [];
+    for (const s of b.secs) {
+      if (this.owner(s.id, t)) continue;
+      const men = rec.gar[m0 * rec.nSec + s.id]; if (men < 2) continue;
+      for (const q of paths[s.id]) gar.push({ p: q, men });
+    }
+    this.r.setGarrison(gar);
     // battalion centres
     for (const p of this.bnPos) { p.x = 0; p.z = 0; p.men = 0; }
     for (const c of b.strips) {

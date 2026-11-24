@@ -14,12 +14,14 @@ READ = {
   'Puisieux': ('10', 1230, 370), 'Hébuterne': ('11', 556, 400), 'Gommecourt': ('11', 648, 195), 'Colincamps': ('11', 177, 779),
   'Foncquevillers': ('12', 532, 710),
   # features: where the name is printed on the ground they describe
+  'Schwaben Redoubt': ('5000', 398, 232),   # where the 1:5000 sheet prints the name, inside the redoubt
   'Y Ravine': ('09', 720, 510), 'Mash Valley': ('07', 900, 240), 'Sausage Valley': ('07', 1080, 520), 'Mouquet Farm': ('08', 1379, 308),
 }
 fits = json.load(open(f'{ROOT}/data/sheetfits.json'))
 LAT0, LON0 = 50.06, 2.72; KX = 111320 * math.cos(math.radians(LAT0)); KZ = 110574
 def ll(name):
-    k, u, v = READ[name]; x, z = sheets.transform(k, fits[k])(np.array([float(u)]), np.array([float(v)]))[0]
+    k, u, v = READ[name]
+    x, z = sheets.sch_local(u, v) if k == '5000' else sheets.transform(k, fits[k])(np.array([float(u)]), np.array([float(v)]))[0]
     return [round(LAT0 - z / KZ, 6), round(LON0 + x / KX, 6)]
 if __name__ == '__main__':
     g = json.load(open(f'{ROOT}/data/geography_src.json'))
