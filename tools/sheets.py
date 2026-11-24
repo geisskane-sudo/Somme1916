@@ -37,10 +37,17 @@ def yards_to_local(E, S, raw=False):
 #  Hawthorn crater, the D163 and the Beaumont valley road (road-to-relief registration: +140, -310), Y Ravine,
 #  and the British front line passing the Newfoundland caribou (anchor, CWGC).
 #  Zero: Ulster Tower on the German front line, Thiepval Memorial at the chateau site, Lochnagar on the
-#  German front line, Railway Hollow on the British support line (Serre), Devonshire Cemetery (62D fit).
+#  German front line. Checked after: Redan Ridge Cemeteries No.1 (midway between the lines) and No.2 (90 m
+#  west of the German front) agree within ~25 m.
 WARP = [  # (x, z, dx, dz) at grid-placed positions
     (-4700, -2400, 125, -300), (-5000, -1650, 125, -300), (-4650, -3000, 125, -300),
-    (-2840, -130, 0, 0), (-2450, 1000, 0, 0), (-1615, 4915, 0, 0), (-4610, -5089, 0, 0), (1112, 7895, 0, 0),
+    (-2840, -130, 0, 0), (-2450, 1000, 0, 0), (-1615, 4915, 0, 0),
+    # Serre: Queens and Luke Copse cemeteries (CWGC: on the British front line of July 1916) lie 130-140 m east
+    # of the traced British line; Railway Hollow (British support line) then falls ~180 m behind it
+    (-4450, -5150, 130, 0),
+    # Mametz: Devonshire Cemetery (the Devons' front-line trench) lies ~60 m north of the traced British line,
+    # Gordon Cemetery (2nd Gordons' support trench) 40 m south of it
+    (1112, 7895, 0, -60),
 ]
 WARP_SIGMA, WARP_FLOOR = 800.0, 0.02
 def warp_offset(p):
