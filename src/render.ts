@@ -516,7 +516,13 @@ export class Renderer {
     if (this.trenches) return this.trenches;
     const out: Run[] = [...trenchRuns()];
     const B = this.lines.british, G = this.lines.german;
-    out.push({ kind: FIRE, p: B }, { kind: FIRE, p: offsetAway(B, 160, G) });
+    // the support line follows the front's general course: offset from a smoothed front (about ±160 m), so a
+    // salient such as the Mary Redan doesn't throw the offset line into a box
+    const Br = resample(B, 20), Bs = Br.map((_, i) => {
+      let x = 0, z = 0, n = 0; for (let k = Math.max(0, i - 8); k <= Math.min(Br.length - 1, i + 8); k++) { x += Br[k].x; z += Br[k].z; n++; }
+      return { x: x / n, z: z / n };
+    });
+    out.push({ kind: FIRE, p: B }, { kind: FIRE, p: offsetAway(Bs, 160, G) });
     // no schematic German trenches beyond the trench maps: there the front-line ribbons show where the lines ran
     return (this.trenches = out);
   }

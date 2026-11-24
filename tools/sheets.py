@@ -26,8 +26,34 @@ A = sch_local(177, 41)
 ex = sch_local(178, 41) - A; ex /= np.hypot(*ex)       # grid east in local metres
 sy = sch_local(177, 42) - A; sy /= np.hypot(*sy)       # grid south
 E0, S0 = grid('57D', 'R', 19)
-def yards_to_local(E, S):
-    return A + ex * (np.asarray(E) - E0)[..., None] * YD + sy * (np.asarray(S) - S0)[..., None] * YD
+def yards_to_local(E, S, raw=False):
+    p = A + ex * (np.asarray(E) - E0)[..., None] * YD + sy * (np.asarray(S) - S0)[..., None] * YD
+    return p if raw else warp(p)
+
+# Correction from the trench-map grid to the real ground (local metres, real minus grid-placed), measured on the
+# 5 m terrain where the sheets and the ground share sharp features. A smooth field: Gaussian-weighted control
+# offsets, fading to nothing away from them. Zero controls pin places checked as right.
+#  Beaumont-Hamel (sheet 09): the 1916 map sits ~300 m south and ~125 m west of the ground. Measured on the
+#  Hawthorn crater, the D163 and the Beaumont valley road (road-to-relief registration: +140, -310), Y Ravine,
+#  and the British front line passing the Newfoundland caribou (anchor, CWGC).
+#  Zero: Ulster Tower on the German front line, Thiepval Memorial at the chateau site, Lochnagar on the
+#  German front line, Railway Hollow on the British support line (Serre), Devonshire Cemetery (62D fit).
+WARP = [  # (x, z, dx, dz) at grid-placed positions
+    (-4700, -2400, 125, -300), (-5000, -1650, 125, -300), (-4650, -3000, 125, -300),
+    (-2840, -130, 0, 0), (-2450, 1000, 0, 0), (-1615, 4915, 0, 0), (-4610, -5089, 0, 0), (1112, 7895, 0, 0),
+]
+WARP_SIGMA, WARP_FLOOR = 800.0, 0.02
+def warp_offset(p):
+    p = np.asarray(p, float); C = np.array(WARP, float)
+    d2 = ((p[..., None, :] - C[:, :2]) ** 2).sum(-1); w = np.exp(-d2 / (2 * WARP_SIGMA ** 2))
+    return (w[..., None] * C[:, 2:]).sum(-2) / (w.sum(-1) + WARP_FLOOR)[..., None]
+def warp(p):
+    if os.environ.get('NOWARP'): return np.asarray(p, float)
+    return np.asarray(p, float) + warp_offset(p)
+def unwarp(q):
+    q = np.asarray(q, float); p = q.copy()
+    for _ in range(8): p = q - (warp(p) - p)
+    return p
 
 # screenshots: file, sheet, a labelled corner (pixel, square), approximate px per 1000 yd, map area to use
 SHOTS = {
@@ -84,15 +110,15 @@ def refine(k):
                             if sc > best[0] + 1e-6: best = (sc, *c); improved = True
     return best
 
-def transform(k, fit):
-    """pixel -> local metres for screenshot k"""
+def transform(k, fit, raw=False):
+    """pixel -> local metres for screenshot k (raw: before the warp to the ground; then affine)"""
     _, u0, v0, sp, th = fit; S = SHOTS[k]
     E0k, S0k = grid(S['sheet'], *S['sq'])
     c, s = np.cos(th), np.sin(th)
     def f(u, v):
         du, dv = np.asarray(u) - u0, np.asarray(v) - v0
         e = (c * du + s * dv) / sp * 1000; n = (-s * du + c * dv) / sp * 1000
-        return yards_to_local(E0k + e, S0k + n)
+        return yards_to_local(E0k + e, S0k + n, raw)
     return f
 
 if __name__ == '__main__':

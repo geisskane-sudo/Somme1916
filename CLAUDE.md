@@ -61,3 +61,8 @@ A watch-only browser simulation of the British attack on the Somme, 1 July 1916,
 
 ## Commits
 End commit messages with the attribution lines the session asks for.
+
+## 24 Nov evening: sheet-to-ground correction
+- `tools/sheets.py` `WARP`: a smooth correction field (Gaussian-weighted control offsets, real minus grid-placed) applied in `yards_to_local`, so every sheet-derived file (trenches, British line, roads, buildings, woods, places, named points, the 1916 map mosaic via `unwarp`) moves together. At Beaumont-Hamel the sheet sat ~300 m south and ~125 m west of the ground (Hawthorn crater, D163, Beaumont valley road, Y Ravine, British line at the Newfoundland caribou). Zero controls: Ulster Tower, Thiepval Memorial, Lochnagar, Railway Hollow, Devonshire Cemetery. `NOWARP=1` reproduces the old outputs.
+- Mary Redan salient spliced into the British line (`MARY_REDAN` in tools/british.py); the sketch German front (geography_src) re-drawn from Hawthorn to the Ancre along the traced front; the British support trench is offset from a smoothed front (render.ts `trenchSet`).
+- Checks: /tmp-style overlays of the 5 m terrain (local relief) blended with the 1916 map; road-to-relief registration worked only where roads are sunken (strong at Beaumont-Hamel). Rest of the front not yet surveyed systematically.

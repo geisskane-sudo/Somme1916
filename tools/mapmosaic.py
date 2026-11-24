@@ -12,9 +12,11 @@ fits = json.load(open(f'{ROOT}/data/sheetfits.json'))
 M = 5.0
 
 def inverse(k):
-    """local -> pixel for screenshot k (its transform is affine)"""
-    f = sheets.transform(k, fits[k]); P = np.array([[0, 0], [1000, 0], [0, 1000]], float); X = f(P[:, 0], P[:, 1])
-    A = np.linalg.solve(np.c_[X, np.ones(3)], P); return lambda x, z: np.c_[x, z, np.ones(len(x))] @ A
+    """local -> pixel for screenshot k (affine before the warp to the ground)"""
+    f = sheets.transform(k, fits[k], raw=True); P = np.array([[0, 0], [1000, 0], [0, 1000]], float); X = f(P[:, 0], P[:, 1])
+    A = np.linalg.solve(np.c_[X, np.ones(3)], P)
+    def inv(x, z): q = sheets.unwarp(np.c_[x, z]); return np.c_[q, np.ones(len(x))] @ A
+    return inv
 
 if __name__ == '__main__':
     keys = list(sheets.SHOTS); geo = {k: centre(k) for k in keys}
