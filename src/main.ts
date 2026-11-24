@@ -7,6 +7,7 @@ import { Battle } from './battle';
 import { BattleView } from './battleview';
 import { loadSheet } from './closeground';
 import { shellBands, bombardment } from './shelling';
+import { TOUR } from './tour';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -345,6 +346,38 @@ async function boot() {
     const ll = toLL(g.x, g.z);
     show(`<p class="dim">${ll[0].toFixed(4)}° N, ${ll[1].toFixed(4)}° E · ${Math.round(ground(g.x, g.z))} m above sea level</p>`);
   }
+
+  // ---------------- guided tour ----------------
+  const tourEl = $('tour');
+  let stop = -1;
+  const where = (a: (typeof TOUR)[number]['at']): P | null => {
+    if (a.ll) return toXZ(a.ll);
+    if (a.mine) { const m = GEO.mines.find(x => x.name.startsWith(a.mine!)); return m ? toXZ(m.ll) : null; }
+    const f = [...GEO.places, ...GEO.features].find(x => x.name === (a.place ?? a.feature)); return f ? toXZ(f.ll) : null;
+  };
+  const showStop = (i: number) => {
+    stop = Math.max(0, Math.min(TOUR.length - 1, i)); const s = TOUR[stop];
+    tourEl.classList.remove('hidden'); $('info').classList.add('hidden'); $('toast').classList.remove('on');
+    tourEl.innerHTML = `<div class="tn">Stop ${stop + 1} of ${TOUR.length} · ${esc(s.time)}</div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>` +
+      (s.source ? `<p class="dim src">${esc(s.source)}</p>` : '') +
+      `<div class="row"><button id="t-prev"${stop === 0 ? ' disabled' : ''}>‹ Back</button><button id="t-next">${stop === TOUR.length - 1 ? 'Finish' : 'Next ›'}</button><button id="t-end">End tour</button></div>`;
+    $('t-prev').onclick = () => showStop(stop - 1);
+    $('t-next').onclick = () => (stop === TOUR.length - 1 ? endTour() : showStop(stop + 1));
+    $('t-end').onclick = endTour;
+    const p = where(s.at);
+    if (s.at.whole || !p) whole(); else fly(p.x, p.z, s.dist);
+    // jump to the stop's moment once the simulation has worked that far
+    const target = parseTime(s.time) ?? T0, me = stop;
+    const go = () => {
+      if (stop !== me) return;
+      if (bv.available < target && !simDone) { play(false); setTimeout(go, 250); return; }
+      t = Math.max(T0, Math.min(target, bv.available)); prevT = t; slider.value = String(t); r.bursts.length = 0;
+      setSpeed(s.speed); play(true);
+    };
+    go();
+  };
+  const endTour = () => { stop = -1; tourEl.classList.add('hidden'); $('b-tour').classList.remove('on'); };
+  $('b-tour').onclick = () => { if (stop >= 0) endTour(); else { $('b-tour').classList.add('on'); showStop(0); } };
 
   // ---------------- buttons ----------------
   $('b-whole').onclick = whole;

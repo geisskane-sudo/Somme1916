@@ -37,6 +37,8 @@
   #slider { flex: 1 1 200px; accent-color: var(--accent); }
   #play { font-size: 15px; width: 42px; }
   #speeds { display: flex; gap: 3px; } #speeds button { padding: 3px 7px; font-size: 12px; }
+  #tour { position: fixed; left: 8px; bottom: 84px; width: min(380px, calc(100% - 16px)); padding: 10px 13px; }
+  #tour h3 { margin: 2px 0 4px; font-size: 16px; } #tour p { margin: 6px 0; line-height: 1.45; } #tour .tn { font-size: 11.5px; color: var(--accent); } #tour .src { font-size: 11px; font-style: italic; } #tour .row { margin-top: 8px; } #tour button[disabled] { opacity: 0.4; }
   #info { position: fixed; left: 8px; bottom: 84px; width: min(340px, calc(100% - 16px)); padding: 9px 12px; }
   #info h3 { margin: 0 24px 2px 0; font-size: 15px; } #info p { margin: 5px 0; } #info .nick { color: var(--accent); font-style: italic; }
   #info .cas b { color: #ff9a85; font-size: 15px; } #info .x { position: absolute; top: 5px; right: 6px; padding: 0 7px; } #info a { color: var(--accent); cursor: pointer; text-decoration: underline; }
@@ -60,7 +62,7 @@
   #loading, #error { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; padding: 20px; }
   #error { background: #222; color: #f99; }
   kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11.5px; }
-  @media (max-width: 700px) { #events { top: auto; bottom: 150px; width: calc(100% - 16px); max-height: 16vh; } #phase { display: none; } #info { bottom: 150px; max-height: 45vh; overflow: auto; } #top .sub { display: none; } #legend { font-size: 10.5px; gap: 6px; } #bar { gap: 6px; padding: 6px 8px; } #clock { font-size: 18px; } }
+  @media (max-width: 700px) { #events { top: auto; bottom: 150px; width: calc(100% - 16px); max-height: 16vh; } #phase { display: none; } #info, #tour { bottom: 150px; max-height: 45vh; overflow: auto; } #top .sub { display: none; } #legend { font-size: 10.5px; gap: 6px; } #bar { gap: 6px; padding: 6px 8px; } #clock { font-size: 18px; } }
 </style>
 </head>
 <body>
@@ -72,12 +74,13 @@
 <div id="top" class="panel">
   <h1>1 July 1916</h1>
   <div class="sub">The British attack on the Somme, Gommecourt to Maricourt · a simulation</div>
-  <div class="row"><button id="b-whole">Whole front</button><select id="goto"></select><button id="b-map" title="Show the 1916 trench maps under the battlefield">1916 map</button><button id="b-help">?</button></div>
+  <div class="row"><button id="b-tour" title="A guided tour of the day, stop by stop">Guided tour</button><button id="b-whole">Whole front</button><select id="goto"></select><button id="b-map" title="Show the 1916 trench maps under the battlefield">1916 map</button><button id="b-help">?</button></div>
   <div id="score"></div>
 </div>
 <div id="events" class="panel"></div>
 <div id="toast"></div>
 <div id="info" class="panel hidden"></div>
+<div id="tour" class="panel hidden"></div>
 <div id="bar" class="panel">
   <button id="play">▶</button>
   <div><div id="clock">06:00</div><div id="date">Saturday 1 July 1916</div></div>
@@ -90,7 +93,7 @@
   <h2>Key</h2>
   <p><span class="key"><i class="b"></i>British front line</span><span class="key"><i class="g"></i>German front line</span><span class="key"><i class="g2"></i>German second (reserve) line</span><span class="key"><i class="blk"></i>A company of about 150–200 men</span></p>
   <h2>Controls</h2>
-  <p><b>Mouse:</b> drag to move · wheel to zoom · right-drag (or Shift-drag) to rotate and tilt · click for details.<br>
+  <p><b>Guided tour:</b> steps through thirteen moments of the day, from the final bombardment to nightfall. Each stop moves the view, sets the clock and plays from there; use Next and Back, or End tour to explore freely.<br><b>Mouse:</b> drag to move · wheel to zoom · right-drag (or Shift-drag) to rotate and tilt · click for details.<br>
   <b>Touch:</b> drag to move · pinch to zoom · twist to rotate · two fingers up/down to tilt · tap for details.<br>
   <b>Keys:</b> <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> rotate · <kbd>R</kbd>/<kbd>F</kbd> tilt · <kbd>+</kbd>/<kbd>−</kbd> zoom · <kbd>Space</kbd> pause.</p>
   <h2>How the simulation works</h2>
