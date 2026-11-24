@@ -1,6 +1,7 @@
 // Map projection, elevation and geography. Local metres: x east, z south, y up; origin near Thiepval-Pozières.
 import geoJson from '../web/geography.json';
 import { DEM_B64 } from './demdata';
+import { FINE } from './finedem';
 
 export type LL = [number, number];
 export const LAT0 = 50.06, LON0 = 2.72;
@@ -26,6 +27,19 @@ export class Dem {
   rows: number; cols: number; north: number; west: number; cell: number;
   h: Float32Array;
   minX: number; maxX: number; minZ: number; maxZ: number;
+  /** 5 m grids (IGN RGE ALTI) in 1 km blocks along the front, loaded from terrain.bin; key 'i,j' */
+  fine = { ...FINE, h: new Map<string, Float32Array>() };
+  /** take the fine terrain from terrain.png's pixels (RGBA, as from getImageData); false if they don't check out */
+  loadFine(px: Uint8ClampedArray, width: number) {
+    const N = FINE.n + 1; let sum = 0; const out = new Map<string, Float32Array>();
+    FINE.blocks.forEach(([i, j], k) => {
+      const h = new Float32Array(N * N), r0 = Math.floor(k / FINE.cols) * N, c0 = (k % FINE.cols) * N;
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) { const o = ((r0 + r) * width + c0 + c) * 4, d = px[o] * 256 + px[o + 1]; sum += d; h[r * N + c] = d * FINE.scale; }
+      out.set(i + ',' + j, h);
+    });
+    if (sum !== FINE.checksum) { console.warn('terrain.png did not decode exactly; using the coarse terrain'); return false; }
+    this.fine.h = out; return true;
+  }
   constructor() {
     const d = GEO.dem;
     this.rows = d.rows; this.cols = d.cols; this.north = d.north; this.west = d.west; this.cell = d.cell_deg;
@@ -45,7 +59,18 @@ export class Dem {
     const i = Math.floor(r), j = Math.floor(c), fr = r - i, fc = c - j, n = this.cols, h = this.h, k = i * n + j;
     return h[k] * (1 - fr) * (1 - fc) + h[k + 1] * (1 - fr) * fc + h[k + n] * fr * (1 - fc) + h[k + n + 1] * fr * fc;
   }
-  height(x: number, z: number) { const ll = toLL(x, z); return this.heightLL(ll[0], ll[1]); }
+  height(x: number, z: number) {
+    const F = this.fine;
+    if (F.h.size) {
+      const bi = Math.floor((x - F.x0) / F.block), bj = Math.floor((z - F.z0) / F.block), h = F.h.get(bi + ',' + bj);
+      if (h) {
+        const c = Math.min(F.n - 1e-6, (x - F.x0 - bi * F.block) / F.step), r = Math.min(F.n - 1e-6, (z - F.z0 - bj * F.block) / F.step), n = F.n + 1;
+        const i = Math.floor(r), j = Math.floor(c), fr = r - i, fc = c - j, k = i * n + j;
+        return h[k] * (1 - fr) * (1 - fc) + h[k + 1] * (1 - fr) * fc + h[k + n] * fr * (1 - fc) + h[k + n + 1] * fr * fc;
+      }
+    }
+    const ll = toLL(x, z); return this.heightLL(ll[0], ll[1]);
+  }
   inside(x: number, z: number) { return x >= this.minX && x <= this.maxX && z >= this.minZ && z <= this.maxZ; }
 }
 
@@ -92,13 +117,42 @@ export function at(p: P[], s: number) {
 
 /** offset a polyline sideways by d metres, on the side away from `away` */
 export function offsetAway(p: P[], d: number, away: P[]): P[] {
-  return p.map((q, i) => {
+  // side of each point (away from the other line), smoothed over its neighbours so a single point whose nearest
+  // point on the other line falls the other way can't throw a spike
+  const N = p.map((q, i) => {
     const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
     let nx = -(b.z - a.z), nz = b.x - a.x; const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
     const near = project(away, q);
-    if ((q.x - near.x) * nx + (q.z - near.z) * nz < 0) { nx = -nx; nz = -nz; }
-    return { x: q.x + nx * d, z: q.z + nz * d };
+    return { nx, nz, side: (q.x - near.x) * nx + (q.z - near.z) * nz < 0 ? -1 : 1 };
   });
+  const out = p.map((q, i) => {
+    let s = 0; for (let k = Math.max(0, i - 6); k <= Math.min(p.length - 1, i + 6); k++) s += N[k].side;
+    const sg = s < 0 ? -1 : 1;
+    return { x: q.x + N[i].nx * d * sg, z: q.z + N[i].nz * d * sg };
+  });
+  return untangle(out);
+}
+
+/** cut out the small loops an offset line makes where it turns inside a bend */
+export function untangle(p: P[], window = 60): P[] {
+  const out: P[] = [];
+  const cross = (a: P, b: P, c: P, d: P) => {
+    const den = (b.x - a.x) * (d.z - c.z) - (b.z - a.z) * (d.x - c.x); if (Math.abs(den) < 1e-9) return null;
+    const t = ((c.x - a.x) * (d.z - c.z) - (c.z - a.z) * (d.x - c.x)) / den, u = ((c.x - a.x) * (b.z - a.z) - (c.z - a.z) * (b.x - a.x)) / den;
+    return t > 0 && t < 1 && u > 0 && u < 1 ? { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t } : null;
+  };
+  let i = 0;
+  while (i < p.length - 1) {
+    out.push(p[i]);
+    let jumped = false;
+    for (let j = Math.min(p.length - 2, i + window); j > i + 1; j--) {
+      const x = cross(p[i], p[i + 1], p[j], p[j + 1]);
+      if (x) { out.push(x); i = j + 1; jumped = true; break; }
+    }
+    if (!jumped) i++;
+  }
+  out.push(p[p.length - 1]);
+  return out;
 }
 
 export function hhmm(min: number) {

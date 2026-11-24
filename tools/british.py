@@ -1,9 +1,10 @@
 # British front line from the blue "BRITISH FRONT LINE" on the NLS trench-map screenshots -> local metres
+import os
 import json, sys, math, numpy as np, cv2
 from PIL import Image
-sys.path.insert(0, '/home/claude/somme-1july/tools')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sheets
-ROOT = '/home/claude/somme-1july'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 fits = json.load(open(f'{ROOT}/data/sheetfits.json'))
 
 def blue_pixels(k):
@@ -67,6 +68,9 @@ def solve(Q, n, bi, off, offs, sign, prior=0.002, jump=0.08):
 #    1:5000 Schwaben sheet: from the marsh on the north bank, across the Ancre at the Mill Road, then
 #    down the east edge of Thiepval Wood (where the 36th Division formed up).
 KEEP_OLD_UNTIL = 250                      # bin (20 m steps along the old line) before which the old line is kept
+# Mary Redan, south of the Newfoundland Park: the salient read by eye off sheet 09 (blue dashed), real ground
+MARY_REDAN = [(-4990, -1470), (-4950, -1437), (-4810, -1442), (-4675, -1450), (-4540, -1440), (-4512, -1425),
+              (-4535, -1365), (-4550, -1325), (-4570, -1250), (-4587, -1175), (-4610, -1100), (-4600, -1010), (-4575, -950)]
 ANCRE = [(-3900, -500), (-3443, 17), (-3052, 150), (-2939, 267), (-2853, 432), (-2764, 658)]
 
 def build():
@@ -94,6 +98,8 @@ def build():
     tr = cKDTree(new)
     a = tr.query(ANCRE[0])[1]; b = tr.query(ANCRE[-1])[1]
     line = np.r_[new[:a], resample(np.array(ANCRE, float), 20), new[b + 1:]]
+    tr = cKDTree(line); a = tr.query(MARY_REDAN[0])[1]; b = tr.query(MARY_REDAN[-1])[1]
+    line = np.r_[line[:a], resample(np.array(MARY_REDAN, float), 20), line[b + 1:]]
     return line, has, Q, new
 
 # Thiepval Wood: north and east edges from the 1:5000 Schwaben sheet, south and west from sheet 57D.SE (08)

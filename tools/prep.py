@@ -1,5 +1,6 @@
 """Prepare viewer assets: downsampled elevation (uint16 decimetres) and geography with the Ancre snapped to the valley floor.
 Run: python3 tools/prep.py"""
+import os
 import json, numpy as np
 from PIL import Image
 dem = np.array(Image.open('data/dem/cop30_somme.tif'), dtype=np.float32)   # 720 x 1008, rows from north
@@ -19,9 +20,28 @@ if os.path.exists('data/britishfront.json'):
     g['britishFrontSketch'] = g['britishFront']; g['britishFront'] = bf['line']
     for w in g['woods']:
         if w['name'] == 'Thiepval Wood': w['poly'] = bf['thiepvalWood']
+# villages, features, the Ancre and woods re-read from the trench maps (tools/places.py, tools/ancre.py, tools/woods.py)
+import sys; sys.path.insert(0, "tools"); import places as _pl
+for p in g['places'] + g['features']:
+    if p['name'] in _pl.READ: p['ll'] = _pl.ll(p['name'])
+if os.path.exists('data/mines_snap.json'):          # mines placed on their modern craters (tools/rgealti.py)
+    MS = json.load(open('data/mines_snap.json'))
+    for m in g['mines']:
+        if m['name'] in MS: m['ll'] = MS[m['name']]
+# named points close up: the 36th Division's Ulster-named objectives (tools/ulster.py) and trench-map references
+if os.path.exists('data/namedpoints.json'):
+    for n, ll in json.load(open('data/namedpoints.json')).items(): g['features'].append({'name': n, 'll': ll, 'minor': True})
+for f in g['features']:
+    if f['name'] == 'Schwaben Redoubt': f['name'] = 'Schwaben Redoubt (Feste Schwaben)'
+    if f['name'] == 'Leipzig Salient': f['name'] = 'Leipzig Salient (Granatloch quarry)'
+if os.path.exists('data/ancre.json'): g['ancre'] = json.load(open('data/ancre.json'))['line']
+if os.path.exists('data/woods.json'):
+    WD = json.load(open('data/woods.json'))
+    for w in g['woods']:
+        if w['name'] in WD: w['poly'] = WD[w['name']]
 # snap the Ancre: search across the valley (perpendicular to flow) for the lowest point within 250 m
 pts = g['ancre']; snapped = []
-for k, (la, lo) in enumerate(pts):
+for k, (la, lo) in enumerate([] if os.path.exists('data/ancre.json') else pts):   # the traced line is already on the valley floor
     a = pts[max(0, k-1)]; b = pts[min(len(pts)-1, k+1)]
     dy = (b[0]-a[0]) * 111000; dx = (b[1]-a[1]) * 71500; l = (dx*dx+dy*dy) ** .5 or 1
     nx, ny = -dy/l, dx/l
@@ -31,7 +51,7 @@ for k, (la, lo) in enumerate(pts):
         v = h(la2, lo2)
         if v < best[0] - 0.3: best = (v, la2, lo2)
     snapped.append([round(best[1], 5), round(best[2], 5)])
-g['ancre'] = snapped
+g['ancre'] = snapped or pts
 print('Ancre heights:', [round(h(*p)) for p in snapped])
 for k in ('britishFront', 'germanFront'):
     print(k, 'heights', [round(h(*p)) for p in g[k]][::4])

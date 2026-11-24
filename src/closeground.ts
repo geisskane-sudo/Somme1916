@@ -1,3 +1,4 @@
+import { MAP1916 } from './map1916';
 // The Thiepval close-up ground: a detailed painting (about 1 m per pixel) of the trenches traced from
 // the 1:5000 Schwaben Redoubt sheet, the British trenches, German wire and the shell-torn ground,
 // plus the sheet itself as an optional overlay.
@@ -83,16 +84,13 @@ export function paintGround(r: Renderer) {
 }
 
 /** load the 1916 sheet and drape it with the fitted transform */
-export function loadSheet(r: Renderer, url = 'thiepval_map.jpg') {
+/** the 1916 trench maps stitched into one underlay (tools/mapmosaic.py), placed in local metres */
+export function loadSheet(r: Renderer, url = 'map1916.jpg') {
   return new Promise<void>((res, rej) => {
     const img = new Image();
     img.onload = () => {
-      const F = thiepval.fit, [W, H] = thiepval.size_px, c = Math.cos(F.th), s = Math.sin(F.th);
-      // inverse of x = X0 + s*(c du - s dv), z = Z0 + s*(s du + c dv)
-      const a = [c / F.s / W, s / F.s / W, (-(c * F.X0 + s * F.Z0) / F.s + F.uc) / W];
-      const b = [-s / F.s / H, c / F.s / H, ((s * F.X0 - c * F.Z0) / F.s + F.vc) / H];
-      const fr = thiepval.frame_px;
-      r.setMap(img, a, b, [fr[0] / W, fr[1] / H, fr[2] / W, fr[3] / H]);
+      const M = MAP1916, W = M.x1 - M.x0, H = M.z1 - M.z0;
+      r.setMap(img, [1 / W, 0, -M.x0 / W], [0, 1 / H, -M.z0 / H], [0, 0, 1, 1]);
       res();
     };
     img.onerror = () => rej(new Error('Could not load the 1916 map'));

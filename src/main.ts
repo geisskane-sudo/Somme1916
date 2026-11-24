@@ -6,19 +6,35 @@ import { Renderer, Camera, type Burst } from './render';
 import { Battle } from './battle';
 import { BattleView } from './battleview';
 import { loadSheet } from './closeground';
+import { shellBands, bombardment } from './shelling';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const T0 = 6 * 60, T1 = 22 * 60 + 30, ZERO = 7 * 60 + 30;
 
-function boot() {
+async function boot() {
   const dem = new Dem();
+  // the 5 m terrain along the front (a separate file; the map still works without it)
+  try {
+    const res = await fetch('terrain.png');
+    if (res.ok) {
+      const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+      const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+      const g = cv.getContext('2d', { willReadFrequently: true })!; g.drawImage(bmp, 0, 0);
+      dem.loadFine(g.getImageData(0, 0, bmp.width, bmp.height).data, bmp.width);
+    }
+  } catch (e) { console.warn('no fine terrain', e); }
   const { units, divs, corps } = buildUnits();
   const canvas = $('gl') as HTMLCanvasElement;
-  const r = new Renderer(canvas, dem, units);
+  // edge smoothing setting: kept in the address (#smooth=light) and, where allowed, in local storage
+  const hashQ = /smooth=(full|light|fast)/.exec(location.hash)?.[1];
+  let quality = hashQ ?? 'full'; if (!hashQ) try { quality = localStorage.getItem('smooth') ?? 'full'; } catch { /* no storage */ }
+  const r = new Renderer(canvas, dem, units, quality);
   const cam = new Camera(dem);
   const battle = new Battle(units, divs); battle.begin();
   const bv = new BattleView(battle, r, units);
+  r.setGermanFront(battle.germanFrontPath());
+  r.setShelling(shellBands(battle));
   r.showBattalions = false;
   let sheetReady = false; loadSheet(r).then(() => (sheetReady = true)).catch(() => {});
   let simDone = false;
@@ -52,16 +68,39 @@ function boot() {
   const sectorCorps = (s: string) => { const m = /\b(VIII|VII|XIII|XV|III|X)\b/.exec(s); return m ? corpsByName.get(`${m[1]} Corps`) : undefined; };
   const mines = GEO.mines.map(m => ({ ...m, t: parseTime(m.time) ?? ZERO, p: toXZ(m.ll), fired: false }));
   type Ev = { t: number; text: string; corps?: string; x?: number; z?: number; sim?: boolean };
+  r.setMines(mines.map(m => ({ x: m.p.x, z: m.p.z, d: m.crater_m })));
   const evs: Ev[] = [];
   for (const e of events.timeline) { const tt = parseTime(e.time); if (tt === null) continue; const c = sectorCorps(e.sector); evs.push({ t: tt, text: e.event, corps: c?.name, x: c?.x, z: c?.z }); }
   for (const m of mines) evs.push({ t: m.t, text: `${m.name} mine blown${m.charge_lb ? ` (${m.charge_lb.toLocaleString()} lb of ammonal)` : ''}${m.note ? ' — ' + m.note : ''}`, x: m.p.x, z: m.p.z });
   evs.sort((a, b) => a.t - b.t);
 
+  // ---------------- German counter-attacks (from the German regimental maps in the owner's research) ----------------
+  // arrows shown while each counter-attack was under way; start and end points as offsets from named features
+  const feat = (n: string) => { const f = GEO.features.find(q => q.name.startsWith(n)) ?? GEO.places.find(q => q.name === n); return f ? toXZ(f.ll) : null; };
+  const CA: { t0: number; t1: number; from: [string, number, number]; to: [string, number, number] }[] = [
+    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Grandcourt', 0, 250], to: ['Schwaben Redoubt', 60, -220] },          // Gruppe Prager
+    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Stuff Redoubt', 0, 0], to: ['Schwaben Redoubt', 220, -60] },         // Gruppe Beyerköhler / Wurm, Bavarian R.8
+    { t0: 16 * 60, t1: 22 * 60 + 30, from: ['Mouquet Farm', -300, -350], to: ['Schwaben Redoubt', 200, 180] },    // Abteilung Lunau along the Auwärter-Weg
+    { t0: 9 * 60 + 15, t1: 12 * 60, from: ['Leipzig Salient', 700, -150], to: ['Leipzig Salient', 160, 0] },      // reserves into the Leipzig Salient
+  ];
+  const caArrows = (tm: number) => {
+    const out: P[][] = [];
+    for (const c of CA) {
+      if (tm < c.t0 || tm > c.t1) continue;
+      const a = feat(c.from[0]), b = feat(c.to[0]); if (!a || !b) continue;
+      const A = { x: a.x + c.from[1], z: a.z + c.from[2] }, B = { x: b.x + c.to[1], z: b.z + c.to[2] };
+      const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, h = 90;
+      out.push([A, B], [B, { x: B.x - ux * h - uz * h * 0.6, z: B.z - uz * h + ux * h * 0.6 }], [B, { x: B.x - ux * h + uz * h * 0.6, z: B.z - uz * h - ux * h * 0.6 }]);
+    }
+    return out;
+  };
+  let caKey = '';
+
   // ---------------- effects ----------------
   const rnd = Math.random;
   const ground = (x: number, z: number) => dem.height(x, z);
   const shell = (x: number, z: number, big: number, german: boolean) => {
-    const y = ground(x, z); big *= Math.max(1, cam.dist / 3500);
+    const y = ground(x, z);                     // drawn at true size: no longer enlarged when zoomed out
     r.bursts.push({ x, y: y + 4, z, size: 30 * big, r: 1, g: 0.8, b: 0.45, a: 1, vy: 0, grow: -60, life: 0.18, age: 0, glow: true });
     const c = german ? 0.32 : 0.45;
     r.bursts.push({ x: x + (rnd() - 0.5) * 8, y: y + 10, z, size: 28 * big, r: c + 0.05, g: c, b: c - 0.03, a: 0.65, vy: 4 + rnd() * 4, grow: 18 * big, life: 3 + rnd() * 2, age: 0, glow: false });
@@ -73,26 +112,43 @@ function boot() {
     const q = at(p, s);
     return { x: q.x + (rnd() - 0.5) * spread - q.tz * (rnd() - 0.5) * spread, z: q.z + (rnd() - 0.5) * spread + q.tx * (rnd() - 0.5) * spread };
   };
-  const intensity = (tm: number) => ({
-    // British fire on the German front system: last morning of the bombardment, the intense hour, then lifting
-    bFront: tm < 6 * 60 + 25 ? 0.25 : tm < ZERO ? 1 : 0,
-    bDeep: tm < ZERO ? 0.2 : tm < 10 * 60 ? 0.9 * (1 - (tm - ZERO) / 200) + 0.2 : 0.15,
-    // German defensive barrage on no man's land and the British trenches
-    gNml: tm < 7 * 60 + 25 ? 0.05 : tm < 9 * 60 ? 0.9 : tm < 13 * 60 ? 0.45 : 0.2,
-    gBrit: tm < 7 * 60 + 25 ? 0.08 : tm < 10 * 60 ? 0.5 : 0.2,
-  });
+  // Shellfire follows the simulation, stretch by stretch: the German guns by each corps' German artillery
+  // over the day (Battle.gerArt: silent before zero, full within minutes of it, then by corps), on the British
+  // front and assembly trenches and on no man's land; the British bombardment by each division's weight
+  // (wire cut, garrison wrecked), on the German front system until zero and then lifting deeper.
+  const bomb = battle.cells.map(c => bombardment(c.div, c.corps));
   const effects = (dtReal: number) => {
     if (!playing && prevT === t) return;
-    const k = intensity(t), base = 70 * dtReal;           // bursts per real second at full intensity
-    const spawn = (rate: number, fn: () => void) => { let n = rate * base; while (n > 1 || rnd() < n) { fn(); n--; } };
-    const lift = Math.min(1, Math.max(0, (t - ZERO) / 120));
-    spawn(k.bFront, () => { const q = near(G, 120); shell(q.x, q.z, 1, false); });
-    spawn(k.bFront * 0.5, () => { const q = near(gSupport, 200); shell(q.x, q.z, 1.2, false); });
-    spawn(k.bDeep, () => { const q = near(lift > 0 ? (lift > 0.5 ? S2 : gSupport) : S2, 300); shell(q.x, q.z, 1.3, false); });
-    spawn(k.gNml, () => { const q = near(nml, 160); shell(q.x, q.z, 1, true); });
-    spawn(k.gBrit, () => { const q = near(Bf, 220); shell(q.x, q.z, 1.1, true); });
+    const cells = battle.cells, R = Math.max(600, cam.dist * 1.5);
+    let c0 = 0, bd = Infinity; cells.forEach((c, i) => { const d = Math.hypot(c.bx - cam.tx, c.bz - cam.tz); if (d < bd) { bd = d; c0 = i; } });
+    const span = Math.ceil(R / 100), lo = Math.max(0, c0 - span), hi = Math.min(cells.length - 1, c0 + span);
+    const pick = () => cells[lo + Math.floor(rnd() * (hi - lo + 1))];
+    const pos = (c: typeof cells[0], d: number, spread: number) => { const a = (rnd() - 0.5) * 100, e = (rnd() - 0.5) * spread; return { x: c.bx - c.az * a + c.ax * (d + e), z: c.bz + c.ax * a + c.az * (d + e) }; };
+    const tries = (n: number, fn: () => void) => { let k = n; while (k > 1 || rnd() < k) { fn(); k--; } };
+    const base = 70 * dtReal;
+    // German guns
+    tries(base * 1.4, () => {
+      const c = pick(), A = battle.gerArt(c, t); if (rnd() >= A) return;
+      const onTrenches = t < ZERO + 10 ? 0.85 : 0.5;
+      const q = rnd() < onTrenches ? pos(c, -60 - rnd() * 180, 60) : pos(c, 30 + rnd() * Math.max(10, c.w - 60), 20);
+      shell(q.x, q.z, 1.1, true);
+    });
+    // British guns
+    const lift = (t - ZERO) / 60;               // hours since zero
+    tries(base * 1.2, () => {
+      const c = pick(), I = 0.25 + 0.75 * bomb[c.i];
+      let k: number, d: number;
+      if (t < 6 * 60 + 25) { k = 0.25; d = c.w + rnd() * 450; }
+      else if (t < ZERO) { k = 1; d = c.w - 20 + rnd() * 470; }
+      else { k = Math.max(0.12, 0.9 - lift * 0.35); d = c.w + 300 + Math.min(1600, (t - ZERO) * 12) + (rnd() - 0.5) * 300; }
+      if (rnd() >= k * I) return;
+      const q = pos(c, d, 30); shell(q.x, q.z, 1.2, false);
+    });
     // Very lights at night
-    if (t > 21 * 60 + 40) spawn(0.06, () => { const q = near(nml, 300); r.bursts.push({ x: q.x, y: ground(q.x, q.z) + 60, z: q.z, size: 14, r: 1, g: 1, b: 0.85, a: 1, vy: 8, grow: 0, life: 5, age: 0, glow: true }); });
+    // Very lights over no man's land from dusk: mostly German, fired up from the front trench, drifting down
+    if (t > 21 * 60 + 15) tries(0.45 * base * Math.min(1, (t - 21 * 60 - 15) / 30), () => {
+      const q = near(nml, 400); r.bursts.push({ x: q.x, y: ground(q.x, q.z) + 70 + rnd() * 40, z: q.z, size: 22, r: 1, g: 0.97, b: 0.82, a: 1, vy: -4, grow: 0, life: 6 + rnd() * 4, age: 0, glow: true });
+    });
   };
   const mineBlast = (m: typeof mines[0]) => {
     const { x, z } = m.p, y = ground(x, z), big = Math.max(0.4, Math.sqrt((m.charge_lb || 8000) / 40000));
@@ -118,9 +174,9 @@ function boot() {
     const warm = 1 - Math.min(1, Math.max(0, e * 180 / Math.PI / 25));
     const mix = (a: number[], b: number[], f: number) => a.map((v, i) => v + (b[i] - v) * f);
     return {
-      sun, sunCol: mix([0.05, 0.06, 0.1], mix([1.0, 0.93, 0.82], [1.05, 0.72, 0.45], warm), day),
-      sky: mix([0.07, 0.08, 0.14], [0.42, 0.46, 0.52], day),
-      fog: mix([0.05, 0.06, 0.1], mix([0.74, 0.78, 0.84], [0.85, 0.74, 0.62], warm * 0.7), day),
+      sun, sunCol: mix([0.12, 0.13, 0.19], mix([1.0, 0.93, 0.82], [1.05, 0.72, 0.45], warm), day),
+      sky: mix([0.26, 0.28, 0.37], [0.42, 0.46, 0.52], day),   // night: starlight and a 1% waxing crescent, about as bright as can be read
+      fog: mix([0.1, 0.11, 0.17], mix([0.74, 0.78, 0.84], [0.85, 0.74, 0.62], warm * 0.7), day),
     };
   };
 
@@ -135,8 +191,14 @@ function boot() {
   for (const c of corps) mk(c.name, 'corps', c.x, c.z, 7000, 1e9, 9, () => { fly(c.x, c.z, 6500); showCorps(c.name); });
   for (const d of divs) { const p = offsetPt(d.x, d.z, 900); mk(d.name.replace(' Division', ' Div').replace(/ \(.*?\)/, ''), 'div', p.x, p.z, 1500, 16000, 7, () => { fly(d.x, d.z, 3500); showDiv(d.name); }); }
   for (const p of GEO.places) { const q = toXZ(p.ll); mk(p.name, 'place ' + p.side, q.x, q.z, 0, 40000, 8); }
-  for (const f of GEO.features) { const q = toXZ(f.ll); mk(f.name, 'feat', q.x, q.z, 0, 6000, 6); }
+  for (const f of GEO.features) { const q = toXZ(f.ll); const minor = (f as { minor?: boolean }).minor; mk(f.name, minor ? 'feat minor' : 'feat', q.x, q.z, 0, minor ? 2600 : 6000, minor ? 3 : 6); }
   for (const g of GEO.germanUnits) { const q = toXZ(g.ll); mk(g.name, 'ger', q.x, q.z, 0, 9000, 5); }
+  { // the 48th Division held the line between VII and VIII Corps and did not attack
+    const gap = bv.holding.filter(c => c.corps === 'VIII Corps' || c.corps === 'VII Corps');
+    const runs: typeof gap[] = []; for (const c of gap) { const r0 = runs[runs.length - 1]; if (r0 && c.i === r0[r0.length - 1].i + 1) r0.push(c); else runs.push([c]); }
+    const big = runs.filter(r0 => r0.length >= 10).sort((a, b) => b.length - a.length)[0];
+    if (big) { const c = big[big.length >> 1], w = battle.world(c.s, -350); mk('48th Div (holding the line)', 'div', w.x, w.z, 1500, 16000, 7); }
+  }
   for (const m of mines) mk('✹ ' + m.name, 'mine', m.p.x, m.p.z, 0, 14000, 6, () => showMine(m));
   const bnLabs = units.map(u => mk(short(u.name), 'bn w' + u.wave, u.x, u.z, 0, 3200, 3, () => showBn(u)));
   const moveBnLabels = () => bnLabs.forEach((l, i) => { const p = bv.bnPos[i]; if (Math.abs(p.x - l.x) + Math.abs(p.z - l.z) > 1) { l.x = p.x; l.z = p.z; l.y = undefined; } });
@@ -287,25 +349,25 @@ function boot() {
   // ---------------- buttons ----------------
   $('b-whole').onclick = whole;
   const sel = $('goto') as HTMLSelectElement;
-  sel.innerHTML = '<option value="">Go to…</option>' + corps.map(c => `<option>${esc(c.name)}</option>`).join('') + divs.map(d => `<option value="d:${esc(d.name)}">— ${esc(d.name)}</option>`).join('');
+  // each corps, with its divisions under it
+  sel.innerHTML = '<option value="">Go to…</option>' + corps.map(c => `<option>${esc(c.name)}</option>` +
+    divs.filter(d => d.corps === c.name).map(d => `<option value="d:${esc(d.name)}">\u00a0\u00a0\u00a0${esc(d.name)}</option>`).join('')).join('');
   sel.onchange = () => {
     const v = sel.value; sel.value = '';
     if (v.startsWith('d:')) { const d = divs.find(x => x.name === v.slice(2))!; fly(d.x, d.z, 3500); showDiv(d.name); }
     else if (v) { const c = corpsByName.get(v)!; fly(c.x, c.z, 6500); showCorps(c.name); }
   };
   $('b-help').onclick = () => $('help').classList.toggle('hidden');
-  { // close-up trial, Thiepval only
-    const sel = document.createElement('select'); sel.id = 'closeup'; sel.title = 'Close-up trial (Thiepval only)';
-    ['Close-up: now', 'Close-up: 1 trench shapes', 'Close-up: 2 sharp ground', 'Close-up: 1 + 2'].forEach((t, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = t; sel.appendChild(o); });
-    $('b-map').after(sel);
-    sel.onchange = () => { r.setCloseUp(+sel.value); if (+sel.value && cam.dist > 3000) fly(-2600, 300, 1400); };
+  { const sel = document.createElement('select'); sel.id = 'smooth'; sel.title = 'Edge smoothing (reloads the page)';
+    for (const [v, t] of [['full', 'Smoothing: full'], ['light', 'Smoothing: light'], ['fast', 'Smoothing: fast']]) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }
+    sel.value = quality; $('b-help').before(sel);
+    sel.onchange = () => { try { localStorage.setItem('smooth', sel.value); } catch { /* no storage */ } location.hash = 'smooth=' + sel.value; location.reload(); };
   }
   $('b-map').onclick = () => {
     r.mapOpacity = r.mapOpacity > 0 ? 0 : 0.85; $('b-map').classList.toggle('on', r.mapOpacity > 0);
-    if (r.mapOpacity > 0) { if (!sheetReady) toast('The 1916 map is still loading'); fly(-2350, 150, 2600); toast('1:5000 trench map, Schwaben Redoubt and Thiepval (trenches corrected to 20 October 1916)'); }
+    if (r.mapOpacity > 0) { if (!sheetReady) toast('The 1916 map is still loading'); else toast('British 1:20,000 trench maps, April–May 1916 (National Library of Scotland)'); }
   };
   $('help').onclick = e => { if ((e.target as HTMLElement).id === 'help' || (e.target as HTMLElement).tagName === 'BUTTON') $('help').classList.add('hidden'); };
-  $('begin').onclick = () => { $('intro').classList.add('hidden'); play(true); };
 
   // ---------------- main loop ----------------
   let last = performance.now(), liveT = 0;
@@ -322,10 +384,11 @@ function boot() {
     if (playing) { t = Math.min(T1, bv.available, t + dt * speed / 60); if (t >= T1) play(false); }
     for (const m of mines) if (prevT < m.t && t >= m.t && t - m.t < 4) mineBlast(m);
     effects(dt);
-    // crater decals once a mine has gone up
+    // mine craters once a mine has gone up
     const decals: number[] = [];
-    for (const m of mines) if (t >= m.t) { const R = m.crater_m * 0.8 + 6; r.quad(decals, m.p.x, m.p.z, R, 0, 0, R, [0.33, 0.29, 0.24, 0.95], 1, 2); r.quad(decals, m.p.x, m.p.z, R * 2.4, 0, 0, R * 2.4, [0.86, 0.84, 0.78, 0.55], 1, 1.5); }
-    bv.draw(t, cam); moveBnLabels(); r.render(cam, light(t), decals, dt);
+    mines.forEach((m, i) => (r.craterOn[i] = t >= m.t));
+    bv.draw(t, cam);
+    { const arr = caArrows(t), k = arr.length + ':' + Math.floor(t); if (k !== caKey) { caKey = k; r.setLive(1, arr, [0.28, 0.32, 0.26, 1], 5, 8); } } moveBnLabels(); r.render(cam, light(t), decals, dt);
     $('clock').textContent = `${hhmm(t)}`;
     const tot = bv.totals(t);
     $('score').innerHTML = t < 7 * 60 + 20 ? '' : `Casualties · British <b>${Math.round(tot.b).toLocaleString()}</b> · German <b>${Math.round(tot.g).toLocaleString()}</b>`;
@@ -338,10 +401,10 @@ function boot() {
     requestAnimationFrame(frame);
   };
   $('loading').classList.add('hidden');
-  $('intro').classList.remove('hidden');
+  play(true);   // no introduction screen: the day starts at once (? has the key, controls and sources)
   requestAnimationFrame(frame);
   (window as any).__app = { cam, r, units, divs, corps, battle, bv, get simDone() { return simDone; }, get t() { return t; }, set t(v: number) { t = v; prevT = v; }, play, setSpeed, fly };
 }
 
 window.addEventListener('error', e => { const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Error: ' + e.message; });
-setTimeout(() => { try { boot(); } catch (err) { $('loading').classList.add('hidden'); const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Failed to start: ' + (err instanceof Error ? err.message : String(err)); console.error(err); } }, 20);
+setTimeout(async () => { try { await boot(); } catch (err) { $('loading').classList.add('hidden'); const el = $('error'); el.classList.remove('hidden'); el.textContent = 'Failed to start: ' + (err instanceof Error ? err.message : String(err)); console.error(err); } }, 20);

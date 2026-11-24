@@ -641,6 +641,87 @@ export class Battle {
   /** run the whole day at once */
   runAll() { this.begin(); while (!this.advance(1e9)); return this.rec; }
 
+  // ---------------- drawing helpers (not used by the simulation) ----------------
+  private secPaths: P[][][] | null = null;
+  /** for each section, the pieces of traced trench it stands for: trench lengths within its cell's band that cross
+   *  the line of attack near its depth; a straight piece across the band where nothing was traced */
+  sectionPaths(): P[][][] {
+    if (this.secPaths) return this.secPaths;
+    const segs: number[][] = [];
+    for (const P of TL) for (let k = 1; k < P.length; k++) segs.push([P[k - 1][0], P[k - 1][1], P[k][0], P[k][1]]);
+    const out: P[][][] = this.secs.map(() => []);
+    const H = CELL / 2 + 4;
+    for (const c of this.cells) {
+      const tx = -c.az, tz = c.ax, far = (c.d2 ?? c.w + 2000) + 400;
+      const loc = (x: number, z: number) => [(x - c.bx) * tx + (z - c.bz) * tz, (x - c.bx) * c.ax + (z - c.bz) * c.az];
+      const pieces: number[][] = [];                // along0, depth0, along1, depth1 in cell coordinates
+      for (const g of segs) {
+        if (Math.abs(g[0] - c.bx) > far && Math.abs(g[2] - c.bx) > far) continue;
+        if (Math.abs(g[1] - c.bz) > far && Math.abs(g[3] - c.bz) > far) continue;
+        let [a0, d0] = loc(g[0], g[1]), [a1, d1] = loc(g[2], g[3]);
+        const L = Math.hypot(a1 - a0, d1 - d0); if (L < 1e-6 || Math.abs(a1 - a0) / L < 0.55) continue;   // runs back, not across
+        if ((a0 < -H && a1 < -H) || (a0 > H && a1 > H)) continue;
+        const clip = (a: number) => (a - a0) / (a1 - a0);
+        let u0 = 0, u1 = 1;
+        if (a1 > a0) { u0 = Math.max(u0, clip(-H)); u1 = Math.min(u1, clip(H)); } else { u0 = Math.max(u0, clip(H)); u1 = Math.min(u1, clip(-H)); }
+        if (u1 <= u0) continue;
+        pieces.push([a0 + (a1 - a0) * u0, d0 + (d1 - d0) * u0, a0 + (a1 - a0) * u1, d0 + (d1 - d0) * u1]);
+      }
+      const toW = (a: number, d: number) => ({ x: c.bx + tx * a + c.ax * d, z: c.bz + tz * a + c.az * d });
+      for (const id of c.secs) {
+        const sec = this.secs[id], got: P[][] = [];
+        if (c.traced || c.tracedInter) for (const q of pieces) {
+          const dm = (q[1] + q[3]) / 2;
+          if (Math.abs(dm - sec.depth) < 30 && Math.abs(q[1] - sec.depth) < 45 && Math.abs(q[3] - sec.depth) < 45) got.push([toW(q[0], q[1]), toW(q[2], q[3])]);
+        }
+        // no traced trench: on a mapped stretch draw nothing (the companies show who is there); off the maps a
+        // straight 100 m piece across this stretch's own line of attack
+        out[id] = got.length ? got : (c.traced || c.tracedInter) ? [] : [[toW(-CELL / 2, sec.depth), toW(CELL / 2, sec.depth)]];
+      }
+    }
+    return (this.secPaths = out);
+  }
+  /** the German front line as drawn: each stretch's front trench, following the traced trench between stretches */
+  germanFrontPath(): P[] {
+    const hit = (c: Cell) => {
+      for (let li = 0; li < TL.length; li++) {
+        const P = TL[li];
+        for (let k = 1; k < P.length; k++) {
+          const [x1, z1] = P[k - 1], [x2, z2] = P[k], ex = x2 - x1, ez = z2 - z1, den = c.ax * ez - c.az * ex;
+          if (Math.abs(den) < 1e-9) continue;
+          const t = ((x1 - c.bx) * ez - (z1 - c.bz) * ex) / den, u = ((x1 - c.bx) * c.az - (z1 - c.bz) * c.ax) / den;
+          if (u >= 0 && u <= 1 && Math.abs(t - c.w) < 1.5) return { li, k, u };
+        }
+      }
+      return null;
+    };
+    // a stretch whose front crossing jumps well off its neighbours' (a sap, a salient's flank) is drawn at their median
+    const W = this.cells.map(c => c.w), med = W.map((_, i) => { const v = W.slice(Math.max(0, i - 2), i + 3).sort((a, b) => a - b); return v[v.length >> 1]; });
+    const out: P[] = []; let prev: { li: number; k: number; u: number } | null = null, prevP: P | null = null;
+    for (const c of this.cells) {
+      const odd = Math.abs(c.w - med[c.i]) > 60, d = odd ? med[c.i] : c.w;
+      const p = { x: c.bx + c.ax * d, z: c.bz + c.az * d }, h = c.traced && !odd ? hit(c) : null;
+      if (h && prev && prevP && h.li === prev.li && h.k !== prev.k) {
+        // follow the traced trench from the last crossing to this one, if it doesn't wander far
+        const P = TL[h.li], step = h.k > prev.k ? 1 : -1, mid: P[] = [];
+        for (let k = step > 0 ? prev.k : prev.k - 1; step > 0 ? k < h.k : k >= h.k; k += step) mid.push({ x: P[k][0], z: P[k][1] });
+        let L = 0, q = prevP; for (const m of [...mid, p]) { L += Math.hypot(m.x - q.x, m.z - q.z); q = m; }
+        if (L < 2.2 * Math.hypot(p.x - prevP.x, p.z - prevP.z) + 30) out.push(...mid);
+      }
+      out.push(p); prev = h; prevP = p;
+    }
+    // where stretches fan round a sharp corner (Fricourt) their front points can step backwards: drop those
+    const clean: P[] = [];
+    for (const p of out) {
+      while (clean.length >= 2) {
+        const a = clean[clean.length - 2], b = clean[clean.length - 1];
+        if ((p.x - b.x) * (b.x - a.x) + (p.z - b.z) * (b.z - a.z) < 0) clean.pop(); else break;
+      }
+      clean.push(p);
+    }
+    return clean;
+  }
+
   /** depth into the German position held at the given moment, per cell (-1 = nothing) */
   heldDepth(cellIndex: number, owner: (sid: number) => number) {
     const c = this.cells[cellIndex]; let d = -1;
