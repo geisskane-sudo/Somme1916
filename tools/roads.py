@@ -106,6 +106,31 @@ MANUAL = {
     'Mill Road': ('14', [(268, 262), (300, 300), (335, 333), (372, 340), (430, 345), (470, 350)]),
     'Thiepval Road': ('14', [(470, 350), (520, 376), (570, 402), (620, 440), (660, 482), (700, 530)]),
 }
+# The Albert-Bapaume road (D929, a straight Roman road) as it is on the ground: the line through Bapaume Post
+# Military Cemetery (alongside it, south-east side) and Pozieres British Cemetery (alongside it, north side),
+# CWGC positions; it follows a straight cutting/bank in the 5 m terrain. The sheet's road near La Boisselle lies
+# ~280 m south-east of it (the base map there is off), so main-road pieces along it are projected onto this line.
+D929 = ((50.01182, 2.67388), (50.03371, 2.71551))
+def d929(roads):
+    import math
+    KX = 111320 * math.cos(math.radians(50.06)); KZ = 110574
+    A, B = [np.array([(lo - 2.72) * KX, -(la - 50.06) * KZ]) for la, lo in D929]
+    u = (B - A) / np.linalg.norm(B - A); n = np.array([-u[1], u[0]])
+    old, ts, keep = [], [], []
+    for r in roads:
+        P = np.array(r['p'], float); d = (P - A) @ n; t = (P - A) @ u
+        dirn = (P[-1] - P[0]) / (np.linalg.norm(P[-1] - P[0]) or 1)
+        if r.get('kind') == 'main' and np.all(np.abs(d) < 400) and abs(dirn @ u) > 0.98: old.append(P); ts += [t.min(), t.max()]
+        else: keep.append(r)
+    if not old: return roads
+    # other pieces traced along the sheet's version of this road go with it
+    def along_old(P):
+        near = [min(np.hypot(*(p - q)).min() if False else np.min(np.hypot(*(O - p).T)) for O in old) for p in P]
+        return np.mean(np.array(near) < 90) > 0.7
+    keep = [r for r in keep if not along_old(np.array(r['p'], float))]
+    Q = [A + u * min(ts), A + u * max(ts)]
+    return keep + [{'kind': 'main', 'name': 'Albert-Bapaume road (D929)', 'p': [[round(float(x), 1), round(float(z), 1)] for x, z in Q]}]
+
 def manual():
     out = []
     for name, (k, pts) in MANUAL.items():
@@ -115,7 +140,7 @@ def manual():
 
 if __name__ == '__main__' and len(sys.argv) > 1 and sys.argv[1] == '--clean':
     R = json.load(open(f'{ROOT}/data/roads.json')); n0 = len(R['roads'])
-    R['roads'] = clean([r for r in R['roads'] if 'name' not in r]) + manual()
+    R['roads'] = d929(clean([r for r in R['roads'] if 'name' not in r or 'D929' in r['name']])) + manual()
     json.dump(R, open(f'{ROOT}/data/roads.json', 'w')); print(n0, '->', len(R['roads']), 'pieces'); sys.exit()
 
 if __name__ == '__main__':

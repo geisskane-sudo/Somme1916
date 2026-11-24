@@ -49,11 +49,15 @@ WARP = [  # (x, z, dx, dz) at grid-placed positions
     # Gordon Cemetery (2nd Gordons' support trench) 40 m south of it
     (1112, 7895, 0, -60),
 ]
+# La Boisselle, west end: the Glory Hole craters (5 m terrain, at l'ilot's documented site) lie 134 m north of
+# the sheet's Glory Hole tip, and the Y Sap site (Wikipedia, "just north of the D929") 236 m north of the
+# sheet's Blinddarm loop. Local only (sigma 250 m): Lochnagar, 550 m south-east, sits on its trench.
+WARP += [(-2132, 4692, -23, -134, 250), (-2103, 4582, -38, -236, 250), (-1615, 4915, 0, 0, 250)]
 WARP_SIGMA, WARP_FLOOR = 800.0, 0.02
 def warp_offset(p):
-    p = np.asarray(p, float); C = np.array(WARP, float)
-    d2 = ((p[..., None, :] - C[:, :2]) ** 2).sum(-1); w = np.exp(-d2 / (2 * WARP_SIGMA ** 2))
-    return (w[..., None] * C[:, 2:]).sum(-2) / (w.sum(-1) + WARP_FLOOR)[..., None]
+    p = np.asarray(p, float); C = np.array([c if len(c) == 5 else (*c, WARP_SIGMA) for c in WARP], float)
+    d2 = ((p[..., None, :] - C[:, :2]) ** 2).sum(-1); w = np.exp(-d2 / (2 * C[:, 4] ** 2))
+    return (w[..., None] * C[:, 2:4]).sum(-2) / (w.sum(-1) + WARP_FLOOR)[..., None]
 def warp(p):
     if os.environ.get('NOWARP'): return np.asarray(p, float)
     return np.asarray(p, float) + warp_offset(p)
