@@ -21,9 +21,12 @@ export function bombardment(div: string | null, corps: string) {
 /** shelled bands for each stretch of front, with the chance of a shell hole in each 6 m square */
 export function shellBands(b: Battle): { poly: P[]; p: number }[] {
   const out: { poly: P[]; p: number }[] = [];
+  // intensities smoothed along the front over about a kilometre, so a division boundary is a gradual change
+  const raw = b.cells.map(c => [bombardment(c.div, c.corps), (plan.corps as Corps)[c.corps]?.gerArt ?? 0.8]);
+  const sm = raw.map((_, i) => { let a = 0, g = 0, w = 0; for (let k = -5; k <= 5; k++) { const r = raw[i + k]; if (!r) continue; const q = Math.exp(-k * k / 12); a += r[0] * q; g += r[1] * q; w += q; } return [a / w, g / w]; });
   for (const c of b.cells) {
-    const I = bombardment(c.div, c.corps), G = (plan.corps as Corps)[c.corps]?.gerArt ?? 0.8;
-    const tx = -c.az, tz = c.ax, h = CELL * 0.56;
+    const [I, G] = sm[c.i];
+    const tx = -c.az, tz = c.ax, h = CELL * 0.8;            // overlapping, so no wedges are left unshelled where the front bends
     const band = (d0: number, d1: number, p: number) => {
       const q = (a: number, d: number) => ({ x: c.bx + tx * a + c.ax * d, z: c.bz + tz * a + c.az * d });
       out.push({ poly: [q(-h, d0), q(h, d0), q(h, d1), q(-h, d1)], p });

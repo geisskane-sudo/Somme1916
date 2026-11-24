@@ -527,10 +527,16 @@ export class Renderer {
   setShelling(bands: { poly: P[]; p: number }[]) {
     const N = TEX / 2, cv = document.createElement('canvas'); cv.width = cv.height = N;
     const g = cv.getContext('2d')!; g.fillStyle = '#000'; g.fillRect(0, 0, N, N); g.scale(0.5, 0.5);
-    g.globalCompositeOperation = 'lighten';
-    for (const b of bands) {
-      g.beginPath(); b.poly.forEach((q, i) => { const [x, y] = this.texPx(q.x, q.z); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
-      g.fillStyle = `rgb(${Math.round(Math.min(1, b.p) * 255)},0,0)`; g.fill();
+    // shelled ground on its own layer, then blurred over about 80 m so neighbouring stretches and the edges of
+    // the shelled belt blend instead of meeting in hard-edged blocks
+    { const sh = document.createElement('canvas'); sh.width = sh.height = N;
+      const h = sh.getContext('2d')!; h.scale(0.5, 0.5); h.globalCompositeOperation = 'lighten';
+      for (const b of bands) {
+        h.beginPath(); b.poly.forEach((q, i) => { const [x, y] = this.texPx(q.x, q.z); i ? h.lineTo(x, y) : h.moveTo(x, y); }); h.closePath();
+        h.fillStyle = `rgb(${Math.round(Math.min(1, b.p) * 255)},0,0)`; h.fill();
+      }
+      const blurPx = 80 / ((this.dem.cols * this.dem.cell * 71500) / TEX) * 0.5;
+      g.save(); g.resetTransform(); g.filter = `blur(${blurPx.toFixed(1)}px)`; g.drawImage(sh, 0, 0); g.restore();
     }
     // rubble where the villages stood (blue): the old house plots and streets, fading out at the edge
     g.globalCompositeOperation = 'lighten';

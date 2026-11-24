@@ -80,9 +80,8 @@ export class BattleView {
   private minute(t: number) {
     const b = this.b, n = b.cells.length, rec = b.rec, { m0 } = this.idx(t);
     // captured trenches: the traced trench lengths each held section stands for
-    const paths = b.sectionPaths(), held: P[][] = [];
-    for (const s of b.secs) if (this.owner(s.id, t)) held.push(...paths[s.id]);
-    this.r.setCaptured(held);
+    const paths = b.sectionPaths();
+    // (captured trench lengths are no longer coloured: the owner prefers just the advance line)
     // the line of furthest advance: loosely joins the foremost British parties (companies beyond their own
     // front line, and trenches still held), smoothed so a single deep party doesn't make a spike
     const FWD = new Set<number>([ST.advance, ST.halted, ST.assault, ST.hold, ST.mop, ST.pinned]);
