@@ -1,6 +1,7 @@
 // Sound: off by default. Recorded effects (snd/, from the owner's Western Front project) placed in the world and
 // heard from the camera: far away a shell is quiet, late (speed of sound, at real time only) and muffled
 // (low-pass by distance), so a zoomed-out view hears a low distant drumfire; close in it is loud and sharp.
+import { asset } from './geo';
 type V3 = { x: number; y: number; z: number };
 const FILES = { guns: 'snd/guns_loop.mp3', boom1: 'snd/boom1.mp3', boom2: 'snd/boom2.mp3', boom3: 'snd/boom3.mp3', mg: 'snd/mg_burst.mp3', small: 'snd/smallarms.mp3', incoming: 'snd/incoming.mp3' };
 type Key = keyof typeof FILES;
@@ -25,7 +26,7 @@ export class Sound {
     const comp = c.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; comp.connect(c.destination);
     this.master = c.createGain(); this.master.gain.value = 0; this.master.connect(comp);
     for (const [k, u] of Object.entries(FILES) as [Key, string][])
-      fetch(u).then(r => { if (!r.ok) throw new Error(u); return r.arrayBuffer(); })
+      fetch(asset(u)).then(r => { if (!r.ok) throw new Error(u); return r.arrayBuffer(); })
         .then(a => c.decodeAudioData(a)).then(b => { this.buf[k] = b; if (k === 'guns' || k === 'small') this.bed(k); })
         .catch(e => console.warn('sound not loaded', u, e));
   }

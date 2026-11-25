@@ -3,6 +3,8 @@ import geoJson from '../web/geography.json';
 import { DEM_B64 } from './demdata';
 import { FINE } from './finedem';
 
+/** an asset's address: inlined as a data URL in the single-file download, else the file next to the page */
+export const asset = (url: string) => ((globalThis as unknown as { __ASSETS?: Record<string, string> }).__ASSETS?.[url] ?? url);
 export type LL = [number, number];
 export const LAT0 = 50.06, LON0 = 2.72;
 const KX = 111320 * Math.cos(LAT0 * Math.PI / 180), KZ = 110574;

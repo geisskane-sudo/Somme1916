@@ -1,6 +1,6 @@
 // 1 July 1916 — whole-front viewer: clock, effects tied to the timetable, labels, controls and info panels.
 import events from '../data/events.json';
-import { GEO, Dem, toXZ, toLL, pts, resample, offsetAway, project, at, hhmm, parseTime, type P } from './geo';
+import { GEO, asset, Dem, toXZ, toLL, pts, resample, offsetAway, project, at, hhmm, parseTime, type P } from './geo';
 import { buildUnits, type Battalion } from './units';
 import { Renderer, Camera, type Burst } from './render';
 import { Battle } from './battle';
@@ -19,7 +19,7 @@ async function boot() {
   const dem = new Dem();
   // the 5 m terrain along the front (a separate file; the map still works without it)
   try {
-    const res = await fetch('terrain.png');
+    const res = await fetch(asset('terrain.png'));
     if (res.ok) {
       const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
       const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;

@@ -3,7 +3,7 @@ import { MAP1916 } from './map1916';
 // the 1:5000 Schwaben Redoubt sheet, the British trenches, German wire and the shell-torn ground,
 // plus the sheet itself as an optional overlay.
 import thiepval from '../data/thiepval.json';
-import { GEO, pts, project, type P } from './geo';
+import { GEO, pts, project, asset, type P } from './geo';
 import type { Renderer } from './render';
 
 type XZ = [number, number];
@@ -94,6 +94,6 @@ export function loadSheet(r: Renderer, url = 'map1916.jpg') {
       res();
     };
     img.onerror = () => rej(new Error('Could not load the 1916 map'));
-    img.src = url;
+    img.src = asset(url);
   });
 }
