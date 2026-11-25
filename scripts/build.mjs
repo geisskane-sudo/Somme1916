@@ -15,4 +15,6 @@ await build({ entryPoints: [resolve(root, 'src/main.ts')], bundle: true, format:
 writeFileSync(resolve(out, 'index.html'), readFileSync(resolve(root, 'index.html'), 'utf8').replace('/src/main.ts', './main.js'));
 copyFileSync(resolve(root, 'web/map1916.jpg'), resolve(out, 'map1916.jpg'));
 copyFileSync(resolve(root, 'web/terrain.png'), resolve(out, 'terrain.png'));
+mkdirSync(resolve(out, 'snd'), { recursive: true });
+for (const f of ['boom1', 'boom2', 'boom3', 'guns_loop', 'incoming', 'mg_burst', 'smallarms']) copyFileSync(resolve(root, `web/snd/${f}.mp3`), resolve(out, `snd/${f}.mp3`));
 console.log('Built to dist/');

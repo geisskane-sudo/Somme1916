@@ -8,6 +8,8 @@ import { BattleView } from './battleview';
 import { loadSheet } from './closeground';
 import { shellBands, bombardment } from './shelling';
 import { TOUR } from './tour';
+import { Sound } from './sound';
+import { ST } from './battle';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -100,10 +102,12 @@ async function boot() {
 
   // ---------------- effects ----------------
   const rnd = Math.random;
+  const snd = new Sound();
   const ground = (x: number, z: number) => dem.height(x, z);
   const shell = (x: number, z: number, big: number, german: boolean) => {
     const y = ground(x, z);                     // drawn at true size: no longer enlarged when zoomed out
     r.bursts.push({ x, y: y + 4, z, size: 30 * big, r: 1, g: 0.8, b: 0.45, a: 1, vy: 0, grow: -60, life: 0.18, age: 0, glow: true });
+    snd.shell({ x, y, z }, big, german);
     const c = german ? 0.32 : 0.45;
     r.bursts.push({ x: x + (rnd() - 0.5) * 8, y: y + 10, z, size: 28 * big, r: c + 0.05, g: c, b: c - 0.03, a: 0.65, vy: 4 + rnd() * 4, grow: 18 * big, life: 3 + rnd() * 2, age: 0, glow: false });
   };
@@ -161,6 +165,7 @@ async function boot() {
         r: chalk ? 0.86 : 0.5, g: chalk ? 0.84 : 0.43, b: chalk ? 0.78 : 0.33, a: 0.9, vy: (60 + rnd() * 260) * big, grow: 14, life: 2.5 + rnd() * 4, age: 0, glow: false });
     }
     for (let i = 0; i < 40; i++) { const a = rnd() * 6.283, rr = 60 + rnd() * 250 * big; r.bursts.push({ x: x + Math.cos(a) * rr, y: y + 15, z: z + Math.sin(a) * rr, size: 60 * big, r: 0.8, g: 0.78, b: 0.72, a: 0.7, vy: 3, grow: 25, life: 9, age: 0, glow: false }); }
+    snd.mine({ x, y, z }, m.charge_lb || 8000);
     toast(`${hhmm(m.t)} · ${m.name} mine`);
   };
 
@@ -398,6 +403,7 @@ async function boot() {
     else if (v) { const c = corpsByName.get(v)!; fly(c.x, c.z, 6500); showCorps(c.name); }
   };
   $('b-help').onclick = () => $('help').classList.toggle('hidden');
+  $('b-sound').onclick = () => { const on = snd.toggle(); $('b-sound').textContent = on ? 'Sound: on' : 'Sound: off'; $('b-sound').classList.toggle('on', on); };
   { const sel = document.createElement('select'); sel.id = 'smooth'; sel.title = 'Edge smoothing (reloads the page)';
     for (const [v, t] of [['full', 'Smoothing: full'], ['light', 'Smoothing: light'], ['fast', 'Smoothing: fast']]) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }
     sel.value = quality; $('b-help').before(sel);
@@ -410,7 +416,7 @@ async function boot() {
   $('help').onclick = e => { if ((e.target as HTMLElement).id === 'help' || (e.target as HTMLElement).tagName === 'BUTTON') $('help').classList.add('hidden'); };
 
   // ---------------- main loop ----------------
-  let last = performance.now(), liveT = 0;
+  let last = performance.now(), liveT = 0, sndT = 0, fight = 0; const targets: { x: number; y: number; z: number }[] = [];
   const frame = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     const k = keys, pan = 420 * dt;
@@ -424,6 +430,27 @@ async function boot() {
     if (playing) { t = Math.min(T1, bv.available, t + dt * speed / 60); if (t >= T1) play(false); }
     for (const m of mines) if (prevT < m.t && t >= m.t && t - m.t < 4) mineBlast(m);
     effects(dt);
+    // sound: where the companies near the camera are fighting, and German machine guns firing on them
+    if ((sndT -= dt) < 0 && snd.on) {
+      sndT = 0.5; fight = 0; targets.length = 0;
+      const S = battle.strips, C = battle.cells, R = Math.max(800, cam.dist * 1.2);
+      for (let i = 0; i < S.length; i++) {
+        const c = C[S[i].cell]; if (Math.abs(c.bx - cam.tx) > R || Math.abs(c.bz - cam.tz) > R) continue;
+        const a = bv.stripAt(i, t); if (a.depth <= 0 || a.men < 3) continue;
+        const st = a.state; if (st !== ST.advance && st !== ST.assault && st !== ST.pinned && st !== ST.mop && st !== ST.halted) continue;
+        const x = c.bx + c.ax * a.depth, z = c.bz + c.az * a.depth, d = Math.hypot(x - cam.tx, z - cam.tz);
+        fight += (a.men / 250) * Math.min(1, 400 / Math.max(400, d));
+        if (st !== ST.mop && a.depth < c.w) targets.push({ x: c.bx + c.ax * c.w, y: 0, z: c.bz + c.az * c.w });
+      }
+      fight = Math.min(1, fight / 6);
+    }
+    if (snd.on) {
+      snd.realTime = speed <= 1;
+      snd.listen({ x: cam.ex, y: cam.ey, z: cam.ez }, cam.yaw, cam.dist, playing, dt, fight, t > 21 * 60 + 20);
+      if (playing && targets.length && rnd() < dt * Math.min(4, targets.length * 0.25)) {
+        const q = targets[Math.floor(rnd() * targets.length)]; q.y = ground(q.x, q.z) + 1.5; snd.machineGun(q);
+      }
+    }
     // mine craters once a mine has gone up
     const decals: number[] = [];
     mines.forEach((m, i) => (r.craterOn[i] = t >= m.t));
